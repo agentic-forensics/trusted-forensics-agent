@@ -47,4 +47,5 @@ Python standard library only. No third-party runtime dependencies. Deterministic
 
 ## Licence
 
-Code licence: to be confirmed. The accompanying papers are published separately under CC BY 4.0.
+Code is licensed under the [Apache License 2.0](LICENSE). The accompanying papers
+are published separately under CC BY 4.0.
