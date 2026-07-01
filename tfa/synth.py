@@ -261,6 +261,7 @@ def _spans() -> List[Span]:
             "gen_ai.operation.name": "inference",
             "gen_ai.request.model": MODEL_NAME,
             "gen_ai.provider.name": PROVIDER_NAME,
+            "gen_ai.agent.id": AGENT_ID,
             "gen_ai.agent.version": AGENT_VERSION,
             "gen_ai.conversation.id": CONVERSATION_ID,
             "gen_ai.input.messages": [
