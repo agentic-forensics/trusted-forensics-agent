@@ -38,6 +38,56 @@ python -m unittest discover -s tests
 The generated report, a JSON summary and the synthetic trace itself are also committed under
 [`examples/`](examples/) so they can be read without running anything.
 
+## For investigators: using this in the real world
+
+This is a reference, not a deployable forensic product: it does not reach live providers, issue
+preservation demands or score anomalies (see *What this is (and is not)* below). What it gives a
+practitioner is a working, inspectable model of the method - and there are several concrete ways to
+put it to work today.
+
+- **Rehearse the reconstruction before an incident.** Run `python -m tfa` and read the report top to
+  bottom. It walks a full delegation-chain reconstruction - the seven questions, the five planes, the
+  integrity check, a boundary-subversion finding and a named gap - on a worked case. It is a good way
+  to brief a DFIR team or a prosecutor on what an agentic case actually looks like, and to rehearse
+  Phase 5 (reconstruction) while it is cheap.
+
+- **Turn the seven questions into a preservation and subpoena checklist.** The report shows, for each
+  question, which evidence answers it and which party holds it - and, where it cannot be answered, a
+  *named gap* stating the party and data class that would close it. That is a ready-made list of what
+  to demand and from whom. Preserve the artefacts that fragment first (prompt and transcript,
+  memory and state, the cross-provider join) ahead of everything else.
+
+- **Run your own episode through it.** Shape your collected evidence - provider audit logs, OTel
+  spans, tool and connector logs, identity records - into the same span form as
+  [`examples/synthetic_trace.json`](examples/synthetic_trace.json), build the `Span` objects, and run
+  `ingest`, `build_graph`, `resolve_all` and `render_report` over them. Hand-written fixtures are a
+  supported input; the synthetic trace is just one such fixture. (A generic JSON loader is a natural
+  next step - open an issue if it would help you.)
+
+- **Test an agent's authority.** Encode the agent's real capability certificate (tools, operations,
+  targets, purposes, argument constraints) and let the call-granularity check flag any call that
+  exceeds it as boundary subversion. Matching a tool name is never enough; the check looks at the
+  whole call.
+
+- **Guard against wrongful attribution.** Q4 deliberately reports *thin* attribution - the identity
+  the action ran under - and says in plain terms that this is not evidence the principal directed it.
+  Q7 compares the agent's stated intent against what actually ran downstream. Together they are the
+  practical defence against charging a person for their agent's act.
+
+- **Produce a defensible readiness report.** The report structure - supporting evidence, named gaps,
+  three-sense completeness, the six reliability and admissibility dimensions, and stated limitations -
+  is a template for documenting a real reconstruction honestly, including what you could not
+  establish.
+
+- **Keep your own analysis reviewable.** The transformation ledger and the self-trace show how to
+  record every derived object by hash and code version, and how to witness your own tool's conduct,
+  so another examiner can repeat your analysis and challenge it.
+
+**What it will not do for you.** It will not connect to a model provider or pull live telemetry; it
+will not issue a legal hold, subpoena or any operative preservation demand; it does no machine
+learning or anomaly scoring; and it reports no error rates, because the field has none yet. Use it
+alongside your own authority, process and counsel, not in place of them.
+
 ## What the model does
 
 - **Episode and spans (A.2).** An episode is a finite, partially ordered set of OTel GenAI spans;
