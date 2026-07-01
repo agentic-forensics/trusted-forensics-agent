@@ -1,0 +1,78 @@
+{
+  "boundary_subversions": [
+    {
+      "failed": [
+        "target",
+        "purpose",
+        "arguments"
+      ],
+      "span_id": "span-tool-emailsend",
+      "tool": "email.send"
+    }
+  ],
+  "completeness": {
+    "evidential_complete": true,
+    "per_question": {
+      "Q1": "answered from direct evidence",
+      "Q2": "answered from direct evidence",
+      "Q3": "answered from direct evidence",
+      "Q4": "answered from direct evidence",
+      "Q5": "unanswered because the evidence is unavailable",
+      "Q6": "answered from direct evidence",
+      "Q7": "answered from direct evidence"
+    },
+    "schema_complete": true
+  },
+  "integrity": {
+    "anchors": 2,
+    "chain_head": "1b2bd56e9300e96e29f797f48c0f34553c7840f299bad23fd07ac2758f14c0b7",
+    "independent_witness": false,
+    "ok": true,
+    "summary": "tamper-evident: chain intact and attested by a development stand-in witness (not independent)"
+  },
+  "questions": [
+    {
+      "classification": "answered from direct evidence",
+      "gap": null,
+      "qid": "Q1"
+    },
+    {
+      "classification": "answered from direct evidence",
+      "gap": null,
+      "qid": "Q2"
+    },
+    {
+      "classification": "answered from direct evidence",
+      "gap": null,
+      "qid": "Q3"
+    },
+    {
+      "classification": "answered from direct evidence",
+      "gap": null,
+      "qid": "Q4"
+    },
+    {
+      "classification": "unanswered because the evidence is unavailable",
+      "gap": {
+        "data_class": "dcfp.approval.* records (required, mode, decision, actor, policy id and version)",
+        "party": "agent runtime / approval service"
+      },
+      "qid": "Q5"
+    },
+    {
+      "classification": "answered from direct evidence",
+      "gap": null,
+      "qid": "Q6"
+    },
+    {
+      "classification": "answered from direct evidence",
+      "gap": null,
+      "qid": "Q7"
+    }
+  ],
+  "selftrace_actions": 9,
+  "trace_id": "trace-7f3a91",
+  "unverified_leads": [
+    "lead-external-recipient-alias"
+  ]
+}

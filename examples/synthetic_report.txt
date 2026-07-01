@@ -1,0 +1,133 @@
+==========================================================================
+ADMISSIBILITY-READINESS REPORT
+Trusted Forensic Agent (TFA) - DCFP reference implementation
+Code version: 0.0.1
+==========================================================================
+
+This is a readiness report, not a guarantee. It records supporting evidence, named gaps and stated limitations. It makes no claim of admissibility, accuracy or completeness.
+
+--------------------------------------------------------------------------
+EPISODE
+--------------------------------------------------------------------------
+trace id:        trace-7f3a91
+conversation id: conv-7f3a91
+spans:           7
+
+--------------------------------------------------------------------------
+INTEGRITY LAYER
+--------------------------------------------------------------------------
+tamper-evident: chain intact and attested by a development stand-in witness (not independent)
+chain head: 1b2bd56e9300e96e29f797f48c0f34553c7840f299bad23fd07ac2758f14c0b7
+witnessed anchors: 2
+NOTE: the witness is a development stand-in, not an independent third party. Integrity is a separate property from completeness.
+
+--------------------------------------------------------------------------
+THE SEVEN QUESTIONS
+--------------------------------------------------------------------------
+Q1. Who set the goal?
+    classification: answered from direct evidence
+    alice@acme.example: 'Triage my inbox and summarise anything urgent.'
+    evidence: span-invoke-agent, dcfp.principal.id, gen_ai.input.messages
+
+Q2. Which model and version?
+    classification: answered from direct evidence
+    examplelm-2-medium (ExampleAI); agent version 1.4.2
+    evidence: span-inference-1, gen_ai.request.model, gen_ai.provider.name, gen_ai.agent.version
+
+Q3. What tools were exposed, and at what scope?
+    classification: answered from direct evidence
+    declared: ['calendar.read', 'email.read', 'email.send']; observed in use: ['email.read', 'email.send']
+    evidence: span-create-agent, gen_ai.request.tools
+
+Q4. Whose identity acted?
+    classification: answered from direct evidence
+    thin attribution: actions ran under ['alice@acme.example'] via agent ['agent-mailbox-triage']. This establishes the identity the action ran under, not that the principal directed it.
+    evidence: auth.subject, dcfp.agent.id
+
+Q5. What was auto-approved without human review?
+    classification: unanswered because the evidence is unavailable
+    no dcfp.approval.* record is present on the decision-to-execution edge. Absence is NOT read as auto-approval; the approval instrumentation has not been shown to be complete.
+    NAMED GAP - party: agent runtime / approval service; data class: dcfp.approval.* records (required, mode, decision, actor, policy id and version)
+      closing this requires either the positive approval records or a demonstration that approval instrumentation is complete.
+
+Q6. What context was ingested, and when?
+    classification: answered from direct evidence
+    ingested from ['retrieval:drive://acme/legal/contracts', 'tool-result:email.read']. An injected instruction was present in ingested content.
+    evidence: span-retrieval-contract, span-tool-emailread
+
+Q7. What actually ran downstream?
+    classification: answered from direct evidence
+    stated intent (Brain): 'email.send confidential contract to archive'. Observed effect (Hands): POST smtp-relay.mailbox-backup.example (recipient external-archive@mailbox-backup.example) linked to call-send-1. The observed effect is linked to the tool call by dcfp.effect.observed.
+    evidence: span-egress-http, span-inference-1
+
+--------------------------------------------------------------------------
+CAPABILITY (call-granularity scope check)
+--------------------------------------------------------------------------
+span-tool-emailread: email.read [IN SCOPE]
+span-tool-emailsend: email.send [OUT OF SCOPE - boundary subversion]
+    failed on: target, purpose, arguments
+    target 'external-archive@mailbox-backup.example' not within permitted targets; purpose 'forward confidential contract for archival' not within permitted purposes; recipient_domain != acme.example
+
+--------------------------------------------------------------------------
+COMPLETENESS (three senses)
+--------------------------------------------------------------------------
+schema-complete:     True
+evidential-complete: True
+per-question classification:
+    Q1: answered from direct evidence
+    Q2: answered from direct evidence
+    Q3: answered from direct evidence
+    Q4: answered from direct evidence
+    Q5: unanswered because the evidence is unavailable
+    Q6: answered from direct evidence
+    Q7: answered from direct evidence
+named gaps:
+    Q5: agent runtime / approval service / dcfp.approval.* records (required, mode, decision, actor, policy id and version)
+case sufficiency: Not assessed. Case sufficiency depends on the specific proposition and legal standard at issue and is out of scope for this reference (companion A.2).
+
+--------------------------------------------------------------------------
+UNVERIFIED LEADS (not evidence)
+--------------------------------------------------------------------------
+    lead-external-recipient-alias: model-suggested correlation during reconstruction
+      model-suggested association: a lead to be verified, never an evidential edge on its own authority.
+
+--------------------------------------------------------------------------
+TRANSFORMATION LEDGER
+--------------------------------------------------------------------------
+22 records, each binding inputs by hash to a derived output and the code version that produced it (companion D.3).
+
+--------------------------------------------------------------------------
+SELF-INSTRUMENTATION (forensic-by-design about itself)
+--------------------------------------------------------------------------
+9 of the tool's own actions were emitted as DCFP spans in a separate hash chain, witnessed by the same W (companion D.3).
+self-trace chain head: 1a15b8f0d045da42aafa558ed9dbd2262372715fd2bde88dfad81cb38f5aba18
+
+--------------------------------------------------------------------------
+RELIABILITY AND ADMISSIBILITY DIMENSIONS (companion B Phase 7)
+--------------------------------------------------------------------------
+- Testable methodology:
+    The method is documented and deterministic; another examiner can repeat the analysis from the preserved record.
+- Known error rate:
+    None. The field has no measured error rates for agentic forensics (companion D.5). Stated plainly rather than estimated.
+- Peer review and publication:
+    Not claimed. The surrounding literature is one or two papers deep.
+- General acceptance:
+    None. The relevant community is still forming (companion D.5).
+- Reproducibility (forensic sense):
+    The analysis is re-runnable from versioned inputs and code via the transformation ledger; the agent's own run is not replayable, and that nondeterminism is documented rather than concealed.
+- Chain of custody and record integrity:
+    The witnessed hash chain establishes record integrity and independent attestation (here a development stand-in). Authenticity, provenance and custody/handling records are established separately and are out of scope for this synthetic demonstration.
+
+--------------------------------------------------------------------------
+STATED LIMITATIONS
+--------------------------------------------------------------------------
+- This is a reference implementation, not a product.
+- There are no measured error rates and no claim of general acceptance; the field does not yet have these (companion D.5).
+- The integrity layer secures record integrity and provides an independent attestation of it. It does not make a nondeterministic system reproducible, establish why the system acted, prove the emitter reported faithfully, or prove that omitted events did not occur. Integrity is a separate property from completeness (companion A.6).
+- The integrity layer is weaker against a collector compromised before the witness is reached, against operator-witness collusion, and against clock manipulation (companion A.6).
+- The witness used here is a development stand-in, not an independent third party. A real deployment requires a witness independently subpoenable of the operator (companion A.6).
+- The synthetic trace and this report make no claim of admissibility, accuracy or completeness beyond what the synthetic data supports.
+
+==========================================================================
+END OF REPORT
+==========================================================================
