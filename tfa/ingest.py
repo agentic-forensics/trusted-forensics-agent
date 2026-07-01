@@ -19,10 +19,15 @@ concern).
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from .model import PartialOrder, Span
+
+# Fallback chain seed for a loaded trace that does not carry its own. Any fixed
+# value keeps that trace's chain reproducible; the value itself is not secret.
+_DEFAULT_LOADED_SEED = b"tfa-dcfp-loaded-trace-seed-v1"
 
 
 @dataclass
@@ -87,4 +92,79 @@ def ingest(spans: List[Span]) -> Ingested:
         by_id=by_id,
         roots=roots,
         children=children,
+    )
+
+
+def _span_from_record(raw: Dict) -> Span:
+    """Build a Span from one record of a trace file (companion A.2)."""
+    required = ("trace_id", "span_id", "operation_name", "start_time", "end_time")
+    missing = [k for k in required if k not in raw]
+    if missing:
+        raise ValueError(
+            f"span record is missing required field(s): {', '.join(missing)}"
+        )
+    return Span(
+        trace_id=raw["trace_id"],
+        span_id=raw["span_id"],
+        parent_span_id=raw.get("parent_span_id"),
+        operation_name=raw["operation_name"],
+        start_time=int(raw["start_time"]),
+        end_time=int(raw["end_time"]),
+        attributes=dict(raw.get("attributes", {})),
+        events=tuple(raw.get("events", ())),
+        capture_index=raw.get("capture_index"),
+    )
+
+
+def load_trace(path: str):
+    """Load an episode from a JSON trace file (companion A.2, D.4).
+
+    The file uses the shape of examples/synthetic_trace.json: a top-level object
+    with "spans" (a list of span records), and optionally "trace_id",
+    "conversation_id", "seed_hex", "capability_certificates" and
+    "anchor_indices". This is the supported route for running the model over your
+    own collected evidence: shape it into this form and load it, exactly as a
+    hand-written fixture (briefing scope).
+
+    Returns a synth.Episode so the rest of the pipeline consumes it unchanged.
+    Spans are ordered by capture_index where present, so the hash chain runs over
+    the recorded emission order. Where no seed or anchor points are given, a fixed
+    seed and a single anchor on the final head are used.
+    """
+    # Local import avoids any import-time coupling between ingest and synth.
+    from .synth import Episode
+
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    records = data.get("spans")
+    if not records:
+        raise ValueError(f"trace file {path!r} contains no spans")
+
+    spans = [_span_from_record(r) for r in records]
+    if all(s.capture_index is not None for s in spans):
+        spans.sort(key=lambda s: s.capture_index)
+
+    seed_hex = data.get("seed_hex")
+    seed = bytes.fromhex(seed_hex) if seed_hex else _DEFAULT_LOADED_SEED
+
+    certificates = data.get("capability_certificates", {})
+
+    # Anchor points: use the file's if valid, otherwise anchor the final head.
+    n = len(spans)
+    given = data.get("anchor_indices")
+    if given:
+        anchor_indices = tuple(i for i in given if 0 <= i < n)
+    else:
+        anchor_indices = ()
+    if not anchor_indices:
+        anchor_indices = (n - 1,)
+
+    return Episode(
+        spans=spans,
+        capability_certificates=certificates,
+        seed=seed,
+        trace_id=data.get("trace_id", spans[0].trace_id),
+        conversation_id=data.get("conversation_id", ""),
+        anchor_indices=anchor_indices,
     )

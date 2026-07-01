@@ -18,9 +18,10 @@ import sys
 from typing import List, Optional
 
 from .capability import boundary_subversions
+from .ingest import load_trace
 from .integrity import verify_chain
 from .report import analyse, render_report
-from .synth import build_episode, default_witness, witness_episode
+from .synth import Episode, build_episode, default_witness, witness_episode
 
 
 def _json_summary(analysis) -> dict:
@@ -57,9 +58,8 @@ def _json_summary(analysis) -> dict:
     }
 
 
-def _run_tamper(index: int) -> int:
+def _run_tamper(index: int, episode: Episode) -> int:
     """Witness a clean episode, mutate one stored span, then verify."""
-    episode = build_episode()
     witness = default_witness()
     chain, anchors = witness_episode(episode, witness)
 
@@ -107,12 +107,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--out", metavar="FILE", default=None,
         help="write output to FILE instead of standard output",
     )
+    parser.add_argument(
+        "--trace", metavar="FILE", default=None,
+        help="load an episode from a JSON trace file (see "
+             "examples/synthetic_trace.json) instead of the built-in synthetic "
+             "episode",
+    )
     args = parser.parse_args(argv)
 
-    if args.tamper is not None:
-        return _run_tamper(args.tamper)
+    try:
+        episode = load_trace(args.trace) if args.trace else build_episode()
+    except (OSError, ValueError) as exc:
+        print(f"could not load trace: {exc}", file=sys.stderr)
+        return 2
 
-    episode = build_episode()
+    if args.tamper is not None:
+        return _run_tamper(args.tamper, episode)
+
     analysis = analyse(episode)
 
     if args.format == "json":

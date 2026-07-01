@@ -1,4 +1,8 @@
 {
+  "anchor_indices": [
+    5,
+    6
+  ],
   "capability_certificates": {
     "cert-mailbox-triage-1": {
       "agent_id": "agent-mailbox-triage",

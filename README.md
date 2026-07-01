@@ -59,10 +59,16 @@ put it to work today.
 
 - **Run your own episode through it.** Shape your collected evidence - provider audit logs, OTel
   spans, tool and connector logs, identity records - into the same span form as
-  [`examples/synthetic_trace.json`](examples/synthetic_trace.json), build the `Span` objects, and run
-  `ingest`, `build_graph`, `resolve_all` and `render_report` over them. Hand-written fixtures are a
-  supported input; the synthetic trace is just one such fixture. (A generic JSON loader is a natural
-  next step - open an issue if it would help you.)
+  [`examples/synthetic_trace.json`](examples/synthetic_trace.json), then point the tool at it:
+
+  ```sh
+  python -m tfa --trace mycase.json
+  python -m tfa --trace mycase.json --format json --out mycase-report.json
+  ```
+
+  Hand-written fixtures are a supported input; the synthetic trace is just one such fixture. To work
+  with the results in code, `tfa.ingest.load_trace(path)` returns an episode you can pass straight to
+  `analyse` and `render_report`.
 
 - **Test an agent's authority.** Encode the agent's real capability certificate (tools, operations,
   targets, purposes, argument constraints) and let the call-granularity check flag any call that
