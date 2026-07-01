@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run the test suite
+        # Standard library only; no dependencies to install.
+        run: python -m unittest discover -s tests -v
+
+      - name: Run the end-to-end demo
+        run: python -m tfa
+
+      - name: Confirm tamper-evidence fails closed
+        # A detected tamper must exit non-zero; invert it so the job passes only
+        # when verification fails as designed.
+        run: |
+          if python -m tfa --tamper 3; then
+            echo "expected non-zero exit on tamper" >&2
+            exit 1
+          fi
