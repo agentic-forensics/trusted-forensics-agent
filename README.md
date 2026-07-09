@@ -31,6 +31,15 @@ python -m tfa --format json
 # verification detect it, localise it, and fail closed (non-zero exit).
 python -m tfa --tamper 3
 
+# Run the two worked cases the companion contrasts on the number of providers.
+# One provider holds the conversation, the model calls and the tool calls, so
+# most of the seven questions resolve from a single vendor's records.
+python -m tfa --scenario single
+# Execution is on one provider and the analysis is on a second whose records were
+# not obtained; that segment is declared as a missing segment, so Q2 and Q6 are
+# partial and the report names the party that holds the missing evidence.
+python -m tfa --scenario cross
+
 # Run the tests.
 python -m unittest discover -s tests
 ```
@@ -82,7 +91,7 @@ put it to work today.
 
 - **Produce a defensible readiness report.** The report structure - supporting evidence, named gaps,
   three-sense completeness, the six reliability and admissibility dimensions, and stated limitations -
-  is a template for documenting a real reconstruction honestly, including what you could not
+  is a template for documenting a real reconstruction fully, including what you could not
   establish.
 
 - **Keep your own analysis reviewable.** The transformation ledger and the self-trace show how to
@@ -171,7 +180,7 @@ Out of scope, by design: real provider connectors or live telemetry; issuing any
 request, legal hold or subpoena; anomaly detection beyond simple declared rule flags; measured error
 rates or claims of general acceptance; any GUI, service, or scale/performance work.
 
-## Honesty notes
+## Limitations and caveats
 
 - This is a reference implementation, not a product. There are **no measured error rates and no
   claim of general acceptance** - the field does not yet have these.
@@ -180,7 +189,7 @@ rates or claims of general acceptance; any GUI, service, or scale/performance wo
   emitter reported faithfully, or prove that omitted events did not occur. **Integrity is a separate
   property from completeness**: one cannot protect through a hash chain what was never written.
 - The integrity layer resists a specific adversary. It makes tampering evident where a compromised
-  agent or application emits into an honest, independent collector, or where an operator would later
+  agent or application emits into an uncompromised, independent collector, or where an operator would later
   alter the stored record. It is **weaker against a collector compromised before the witness is
   reached, against operator-witness collusion, and against clock manipulation**, which is why a real
   witness must be independently subpoenable.
