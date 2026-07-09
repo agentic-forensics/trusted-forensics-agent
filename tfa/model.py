@@ -205,6 +205,40 @@ class Edge:
 # time-ordered")
 # --------------------------------------------------------------------------- #
 
+@dataclass(frozen=True)
+class MissingSegment:
+    """A declared segment known to have existed but not captured (companion A.2, C.2).
+
+    Some evidence - typically seized operator tooling or a shared join key -
+    shows that a segment of the delegation chain existed (for example the
+    analysis-side telemetry held by a second provider), but its records were not
+    obtained. Recording it here names the cross-provider join as a gap rather
+    than papering over it (companion C.2/C.3). It is not a guess: `evidence`
+    states what indicates the segment existed.
+
+    `affects` lists the question ids the missing segment bears on, so a resolver
+    that has some but not all of its evidence can classify the question as
+    partial and point to the segment.
+    """
+
+    segment_id: str
+    party: str
+    data_class: str
+    affects: Tuple[str, ...] = ()
+    evidence: str = ""
+    note: str = ""
+
+    def as_record(self) -> dict:
+        return {
+            "segment_id": self.segment_id,
+            "party": self.party,
+            "data_class": self.data_class,
+            "affects": list(self.affects),
+            "evidence": self.evidence,
+            "note": self.note,
+        }
+
+
 class PartialOrder:
     """A partial order over spans, recovered from evidence, not from a clock.
 

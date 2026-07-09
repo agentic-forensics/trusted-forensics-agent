@@ -137,7 +137,9 @@ def analyse(episode: Episode, witness: Optional[Witness] = None) -> Analysis:
     tracer.record_action("build_graph", output={"edges": len(graph.edges)})
 
     # 5. Seven questions, one ledger entry each.
-    answers = resolve_all(episode.spans, episode.capability_certificates)
+    answers = resolve_all(
+        episode.spans, episode.capability_certificates, episode.missing_segments
+    )
     for a in answers:
         ledger.record(
             output_id=f"answer-{a.qid}",
@@ -313,6 +315,28 @@ def render_report(analysis: Analysis) -> str:
             out.append(f"    {qid}: {gap.party} / {gap.data_class}")
     out.append(f"case sufficiency: {a.completeness.case_sufficiency}")
     out.append("")
+
+    # Declared missing segments (companion C.2/C.3). Rendered only when present,
+    # so the base single-episode report is unaffected.
+    if a.episode.missing_segments:
+        out.append(_line())
+        out.append("MISSING SEGMENTS - declared, not captured (cross-provider join)")
+        out.append(_line())
+        out.append(
+            "Known to have existed but not obtained. Named here rather than "
+            "papered over (companion C.2/C.3)."
+        )
+        for seg in a.episode.missing_segments:
+            out.append(f"    {seg.segment_id}")
+            out.append(f"      party:      {seg.party}")
+            out.append(f"      data class: {seg.data_class}")
+            if seg.affects:
+                out.append(f"      bears on:   {', '.join(seg.affects)}")
+            if seg.evidence:
+                out.append(f"      evidence:   {seg.evidence}")
+            if seg.note:
+                out.append(f"      note:       {seg.note}")
+        out.append("")
 
     # Unverified leads
     out.append(_line())

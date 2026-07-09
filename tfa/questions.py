@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .model import Span
+from .model import MissingSegment, Span
 
 
 class Classification(str, Enum):
@@ -97,6 +97,13 @@ def _all(spans: Sequence[Span], op: str) -> List[Span]:
     return [s for s in spans if s.operation_name == op]
 
 
+def _affecting(
+    missing_segments: Optional[Sequence[MissingSegment]], qid: str
+) -> List[MissingSegment]:
+    """Return declared missing segments that bear on this question."""
+    return [m for m in (missing_segments or ()) if qid in m.affects]
+
+
 # --------------------------------------------------------------------------- #
 # The seven resolvers
 # --------------------------------------------------------------------------- #
@@ -128,20 +135,53 @@ def q1_who_set_the_goal(spans: Sequence[Span]) -> Answer:
     )
 
 
-def q2_which_model(spans: Sequence[Span]) -> Answer:
+def q2_which_model(
+    spans: Sequence[Span],
+    missing_segments: Optional[Sequence[MissingSegment]] = None,
+) -> Answer:
     """gen_ai.request.model, provider.name, agent.version from the inference span."""
     inf = _first(spans, "inference")
+    affecting = _affecting(missing_segments, "Q2")
     if inf is not None and inf.get("gen_ai.request.model"):
         model = inf.get("gen_ai.request.model")
         provider = inf.get("gen_ai.provider.name", "unknown provider")
         version = inf.get("gen_ai.agent.version", "unknown version")
+        evidence = (inf.span_id, "gen_ai.request.model", "gen_ai.provider.name",
+                    "gen_ai.agent.version")
+        if affecting:
+            seg = affecting[0]
+            return Answer(
+                qid="Q2",
+                question="Which model and version?",
+                classification=Classification.PARTIAL,
+                value=(
+                    f"captured segment: {model} ({provider}), agent version "
+                    f"{version}. A further model was used in an uncaptured "
+                    f"segment ({seg.data_class}; party: {seg.party}), so the "
+                    "model picture is incomplete."
+                ),
+                evidence=evidence,
+                gap=NamedGap(party=seg.party, data_class=seg.data_class,
+                             note=seg.note),
+            )
         return Answer(
             qid="Q2",
             question="Which model and version?",
             classification=Classification.ANSWERED_DIRECT,
             value=f"{model} ({provider}); agent version {version}",
-            evidence=(inf.span_id, "gen_ai.request.model", "gen_ai.provider.name",
-                      "gen_ai.agent.version"),
+            evidence=evidence,
+        )
+    if affecting:
+        seg = affecting[0]
+        return Answer(
+            qid="Q2",
+            question="Which model and version?",
+            classification=Classification.UNANSWERED_UNAVAILABLE,
+            value=(
+                "the model ran in an uncaptured segment; no inference span is "
+                "available"
+            ),
+            gap=NamedGap(party=seg.party, data_class=seg.data_class, note=seg.note),
         )
     return Answer(
         qid="Q2",
@@ -263,7 +303,10 @@ def q5_auto_approved(spans: Sequence[Span]) -> Answer:
     )
 
 
-def q6_context_ingested(spans: Sequence[Span]) -> Answer:
+def q6_context_ingested(
+    spans: Sequence[Span],
+    missing_segments: Optional[Sequence[MissingSegment]] = None,
+) -> Answer:
     """Retrieval spans, prior tool-result spans feeding the next inference."""
     sources: List[str] = []
     evidence: List[str] = []
@@ -280,14 +323,40 @@ def q6_context_ingested(spans: Sequence[Span]) -> Answer:
                 injected = True
             sources.append(f"tool-result:{s.get('gen_ai.tool.name')}")
             evidence.append(s.span_id)
+
+    affecting = _affecting(missing_segments, "Q6")
     if sources:
         note = " An injected instruction was present in ingested content." if injected else ""
+        if affecting:
+            seg = affecting[0]
+            return Answer(
+                qid="Q6",
+                question="What context was ingested, and when?",
+                classification=Classification.PARTIAL,
+                value=(
+                    f"ingested from {sorted(set(sources))}.{note} Context from an "
+                    f"uncaptured segment is unavailable ({seg.data_class}; party: "
+                    f"{seg.party})."
+                ),
+                evidence=tuple(dict.fromkeys(evidence)),
+                gap=NamedGap(party=seg.party, data_class=seg.data_class,
+                             note=seg.note),
+            )
         return Answer(
             qid="Q6",
             question="What context was ingested, and when?",
             classification=Classification.ANSWERED_DIRECT,
             value=f"ingested from {sorted(set(sources))}.{note}",
             evidence=tuple(dict.fromkeys(evidence)),
+        )
+    if affecting:
+        seg = affecting[0]
+        return Answer(
+            qid="Q6",
+            question="What context was ingested, and when?",
+            classification=Classification.UNANSWERED_UNAVAILABLE,
+            value="the ingested context lies in an uncaptured segment",
+            gap=NamedGap(party=seg.party, data_class=seg.data_class, note=seg.note),
         )
     return Answer(
         qid="Q6",
@@ -345,15 +414,21 @@ def q7_what_ran_downstream(spans: Sequence[Span]) -> Answer:
 
 
 def resolve_all(
-    spans: Sequence[Span], certificates: Optional[Dict[str, Dict]] = None
+    spans: Sequence[Span],
+    certificates: Optional[Dict[str, Dict]] = None,
+    missing_segments: Optional[Sequence[MissingSegment]] = None,
 ) -> List[Answer]:
-    """Resolve Q1 to Q7 in order (companion A.5)."""
+    """Resolve Q1 to Q7 in order (companion A.5).
+
+    Declared missing segments (companion C.2/C.3) let the resolvers classify a
+    question as partial where they hold some but not all of its evidence.
+    """
     return [
         q1_who_set_the_goal(spans),
-        q2_which_model(spans),
+        q2_which_model(spans, missing_segments),
         q3_tools_exposed(spans, certificates),
         q4_whose_identity(spans),
         q5_auto_approved(spans),
-        q6_context_ingested(spans),
+        q6_context_ingested(spans, missing_segments),
         q7_what_ran_downstream(spans),
     ]

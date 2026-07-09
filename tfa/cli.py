@@ -21,7 +21,17 @@ from .capability import boundary_subversions
 from .ingest import load_trace
 from .integrity import verify_chain
 from .report import analyse, render_report
+from .scenarios import build_cross_provider_episode, build_single_provider_episode
 from .synth import Episode, build_episode, default_witness, witness_episode
+
+# The built-in episodes. "synthetic" is the mailbox-triage episode (companion D);
+# "single" and "cross" are the single- and cross-provider worked cases the
+# companion contrasts on provider count (C.1/C.2, C.3).
+SCENARIOS = {
+    "synthetic": build_episode,
+    "single": build_single_provider_episode,
+    "cross": build_cross_provider_episode,
+}
 
 
 def _json_summary(analysis) -> dict:
@@ -54,6 +64,11 @@ def _json_summary(analysis) -> dict:
             "per_question": a.completeness.per_question,
         },
         "unverified_leads": [r.output_id for r in a.unverified_leads],
+        "missing_segments": [
+            {"segment_id": s.segment_id, "party": s.party,
+             "data_class": s.data_class, "affects": list(s.affects)}
+            for s in a.episode.missing_segments
+        ],
         "selftrace_actions": len(a.tracer.spans),
     }
 
@@ -110,13 +125,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "--trace", metavar="FILE", default=None,
         help="load an episode from a JSON trace file (see "
-             "examples/synthetic_trace.json) instead of the built-in synthetic "
-             "episode",
+             "examples/synthetic_trace.json) instead of a built-in episode; "
+             "takes precedence over --scenario",
+    )
+    parser.add_argument(
+        "--scenario", choices=sorted(SCENARIOS), default="synthetic",
+        help="which built-in episode to run (default: synthetic). 'single' and "
+             "'cross' are the single- and cross-provider worked cases "
+             "(companion C.1/C.2); ignored when --trace is given",
     )
     args = parser.parse_args(argv)
 
     try:
-        episode = load_trace(args.trace) if args.trace else build_episode()
+        episode = load_trace(args.trace) if args.trace else SCENARIOS[args.scenario]()
     except (OSError, ValueError) as exc:
         print(f"could not load trace: {exc}", file=sys.stderr)
         return 2

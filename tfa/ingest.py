@@ -132,6 +132,7 @@ def load_trace(path: str):
     seed and a single anchor on the final head are used.
     """
     # Local import avoids any import-time coupling between ingest and synth.
+    from .model import MissingSegment
     from .synth import Episode
 
     with open(path, encoding="utf-8") as f:
@@ -160,6 +161,18 @@ def load_trace(path: str):
     if not anchor_indices:
         anchor_indices = (n - 1,)
 
+    missing_segments = tuple(
+        MissingSegment(
+            segment_id=m["segment_id"],
+            party=m["party"],
+            data_class=m["data_class"],
+            affects=tuple(m.get("affects", ())),
+            evidence=m.get("evidence", ""),
+            note=m.get("note", ""),
+        )
+        for m in data.get("missing_segments", [])
+    )
+
     return Episode(
         spans=spans,
         capability_certificates=certificates,
@@ -167,4 +180,5 @@ def load_trace(path: str):
         trace_id=data.get("trace_id", spans[0].trace_id),
         conversation_id=data.get("conversation_id", ""),
         anchor_indices=anchor_indices,
+        missing_segments=missing_segments,
     )

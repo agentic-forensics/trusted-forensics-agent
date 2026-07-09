@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from .integrity import Anchor, HashChain, LocalWitness, Witness
-from .model import Operation, Span
+from .model import MissingSegment, Operation, Span
 
 
 # --------------------------------------------------------------------------- #
@@ -358,6 +358,8 @@ class Episode:
     # the incident trigger (the out-of-scope send) and the final head (A.6,
     # method Phase 3).
     anchor_indices: Tuple[int, ...] = (5, 6)
+    # Segments known to have existed but not captured (companion C.2/C.3).
+    missing_segments: Tuple[MissingSegment, ...] = ()
 
     def span_by_id(self, span_id: str) -> Optional[Span]:
         for s in self.spans:
