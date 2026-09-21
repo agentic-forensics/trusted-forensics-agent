@@ -100,6 +100,15 @@ class TestLoadHandWrittenTrace(unittest.TestCase):
         with self.assertRaises(ValueError):
             load_trace(self._write(trace))
 
+    def test_duplicate_span_ids_rejected_during_loading(self):
+        span = {
+            "trace_id": "t", "span_id": "same-id",
+            "operation_name": "inference", "start_time": 1, "end_time": 2,
+        }
+        replacement = dict(span, operation_name="execute_tool")
+        with self.assertRaisesRegex(ValueError, "duplicate span_id 'same-id'"):
+            load_trace(self._write({"spans": [span, replacement]}))
+
 
 class TestCliTrace(unittest.TestCase):
     def test_cli_runs_a_loaded_trace(self):

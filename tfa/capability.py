@@ -127,9 +127,19 @@ def check_call(cert: CapabilityCertificate, span: Span) -> CapabilityCheck:
 
     # Binding: the certificate must bind this agent id and version.
     agent_id = span.get("dcfp.agent.id") or span.get("gen_ai.agent.id")
-    if agent_id and agent_id != cert.agent_id:
+    if agent_id != cert.agent_id:
         failed.append("binding")
         reasons.append(f"certificate binds {cert.agent_id}, span agent is {agent_id}")
+
+    versions = [span.get(k) for k in ("dcfp.agent.version", "gen_ai.agent.version")
+                if span.get(k) is not None]
+    if not versions or any(v != cert.agent_version for v in versions):
+        failed.append("binding")
+        reasons.append("agent version is absent, conflicting or differs from the certificate")
+    cert_id = span.get("dcfp.capability.cert_id")
+    if cert_id and cert_id != cert.cert_id:
+        failed.append("binding")
+        reasons.append("call names a different certificate")
 
     # Validity and revocation.
     if cert.revoked:
@@ -190,18 +200,22 @@ def check_episode(
     and parsed here. A tool call whose agent has no certificate is reported as
     out of scope on the binding dimension.
     """
-    by_agent: Dict[str, CapabilityCertificate] = {}
-    for data in certificates.values():
-        cert = parse_certificate(data)
-        by_agent[cert.agent_id] = cert
+    parsed = [parse_certificate(data) for data in certificates.values()]
 
     checks: List[CapabilityCheck] = []
     for span in spans:
         if span.operation_name != "execute_tool":
             continue
         agent_id = span.get("dcfp.agent.id") or span.get("gen_ai.agent.id")
-        cert = by_agent.get(agent_id)
-        if cert is None:
+        cert_id = span.get("dcfp.capability.cert_id")
+        version = span.get("dcfp.agent.version") or span.get("gen_ai.agent.version")
+        candidates = [c for c in parsed if c.agent_id == agent_id]
+        if cert_id:
+            candidates = [c for c in candidates if c.cert_id == cert_id]
+        else:
+            candidates = [c for c in candidates if c.agent_version == version
+                          and c.valid_from <= span.start_time <= c.valid_to]
+        if len(candidates) != 1:
             checks.append(
                 CapabilityCheck(
                     span_id=span.span_id,
@@ -211,11 +225,11 @@ def check_episode(
                     purpose=span.get("dcfp.tool.purpose"),
                     in_scope=False,
                     failed_dimensions=("binding",),
-                    reason=f"no capability certificate for agent '{agent_id}'",
+                    reason=f"no unique capability certificate for agent '{agent_id}' and version '{version}'",
                 )
             )
             continue
-        checks.append(check_call(cert, span))
+        checks.append(check_call(candidates[0], span))
     return checks
 
 

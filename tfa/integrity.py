@@ -224,7 +224,15 @@ class LocalWitness(Witness):
         )
 
     def verify(self, anchor: Anchor) -> bool:
-        if anchor.witness_id != self.witness_id:
+        # The stand-in must never validate a relabelled claim of independence.
+        # Check untrusted indices before encoding them for HMAC verification.
+        if (anchor.witness_id != self.witness_id
+                or anchor.independent is not self.independent
+                or anchor.note != _DEV_NOTE
+                or type(anchor.index) is not int
+                or not 0 <= anchor.index < 2 ** 64
+                or not isinstance(anchor.head, bytes)
+                or not isinstance(anchor.signature, bytes)):
             return False
         expected = self._sign(anchor.index, anchor.head)
         return hmac.compare_digest(expected, anchor.signature)
@@ -241,7 +249,8 @@ class VerificationResult:
 
     Fails closed: ok is True only if every span's recomputed digest and head
     match its receipt AND every anchor verifies against a head the chain
-    actually produced. The first divergence is localised in broken_at_index.
+    actually produced, including an anchor covering the final span. The first
+    divergence is localised in broken_at_index.
     """
 
     ok: bool
@@ -304,6 +313,12 @@ def verify_chain(
         heads_by_index[i] = head
 
         receipt = receipts[i]
+        if receipt.index != i or receipt.span_id != span.span_id:
+            messages.append(
+                f"span index {i} ({span.span_id}): receipt index or span id does not match"
+            )
+            broken_at = i
+            break
         if span_digest != receipt.span_digest:
             messages.append(
                 f"span index {i} ({span.span_id}): content digest does not match receipt"
@@ -328,13 +343,14 @@ def verify_chain(
     # Verify anchors. An anchor is valid only if its signature verifies AND it
     # attests a head the (intact) chain actually produced at that index.
     anchors_ok = True
+    verified_indices = set()
     if not anchors:
         anchors_ok = False
         messages.append("no witnessed anchors supplied")
     for anchor in anchors:
-        if not witness.verify(anchor):
+        if type(anchor.index) is not int or anchor.index < 0:
             anchors_ok = False
-            messages.append(f"anchor at index {anchor.index}: signature does not verify")
+            messages.append(f"anchor at index {anchor.index}: invalid chain index")
             continue
         expected_head = heads_by_index.get(anchor.index)
         if expected_head is None:
@@ -343,11 +359,27 @@ def verify_chain(
                 f"anchor at index {anchor.index}: no chain head at that index"
             )
             continue
+        if not witness.verify(anchor):
+            anchors_ok = False
+            messages.append(f"anchor at index {anchor.index}: signature does not verify")
+            continue
         if anchor.head != expected_head:
             anchors_ok = False
             messages.append(
                 f"anchor at index {anchor.index}: attested head does not match the recomputed chain"
             )
+            continue
+        verified_indices.add(anchor.index)
+
+    # Receipts alone can be recomputed after rewriting an unwitnessed suffix.
+    # A valid prefix anchor therefore cannot establish integrity for the whole
+    # submitted span set (companion A.2, A.6).
+    if spans and len(spans) - 1 not in verified_indices:
+        anchors_ok = False
+        messages.append(
+            f"final span index {len(spans) - 1} is not covered by a verified anchor; "
+            "the complete submitted record is not witnessed"
+        )
 
     ok = chain_ok and anchors_ok
     return VerificationResult(

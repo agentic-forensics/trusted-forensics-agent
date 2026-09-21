@@ -40,7 +40,9 @@ class TestResolvers(unittest.TestCase):
 
     def test_q4_thin_attribution_is_flagged_as_such(self):
         a = self.answers["Q4"]
-        self.assertEqual(a.classification, Classification.ANSWERED_DIRECT)
+        # Tool auth is recorded; the downstream service identity is unavailable.
+        self.assertEqual(a.classification, Classification.PARTIAL)
+        self.assertIn("span-egress-http", a.gap.note)
         self.assertIn("thin attribution", a.value)
 
     def test_q5_is_a_named_gap_not_auto_approval(self):

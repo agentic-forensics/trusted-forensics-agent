@@ -37,3 +37,6 @@ jobs:
             echo "expected non-zero exit on tamper" >&2
             exit 1
           fi
+
+      - name: Exercise the four-step evidence package demo
+        run: python scripts/run_demo.py

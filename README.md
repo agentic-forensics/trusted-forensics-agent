@@ -4,10 +4,14 @@ An open-source reference implementation of the **Delegation-Chain Forensic Profi
 integrity layer and the seven-question delegation-chain reconstruction over OpenTelemetry-shaped
 GenAI spans, demonstrated on a synthetic trace.
 
-It accompanies the paper *Investigating Agentic Crime: A Forensic Model and Method* (the companion
-to *No Human at the Keyboard: Agentic Cybercrime and the Forensic Frontier*). Those papers are the
-authoritative specification of the model; this code expresses it in operational form so a reader can
-run it end to end on a worked episode and inspect every step.
+The accompanying papers, *No Human at the Keyboard: Agentic AI and Cybercrime* and
+*Investigating Agentic Crime: A Forensic Model and Method*, are published on
+[Zenodo (DOI: 10.5281/zenodo.20582995)](https://doi.org/10.5281/zenodo.20582995).
+They are the authoritative specification of the model; this code expresses it in operational form
+so a reader can run it end to end on a worked episode and inspect every step.
+The papers are not included in this repository. Local working copies are excluded from version control.
+
+For a plain-language introduction, read [what this agent does, who can use it and why](WHAT_THIS_AGENT_DOES.md).
 
 ## Status
 
@@ -47,6 +51,68 @@ python -m unittest discover -s tests
 The generated report, a JSON summary and the synthetic trace itself are also committed under
 [`examples/`](examples/) so they can be read without running anything.
 
+## Four-step presentation demo
+
+The demo follows slide 16: verify a preserved record, reconstruct its graph,
+answer the seven questions and produce a sealed readiness package. It runs offline
+and uses the development witness. Watch the [four-minute silent demo](demos/trusted_forensic_agent_4min.mp4),
+or use the [walkthrough](DEMO.md) to run it live.
+
+```sh
+# Run all four stages, verify reproduction, then detect a changed COPY of the report.
+# Creates a fresh directory under results/ on each run.
+python scripts/run_demo.py
+# Pause between stages for a live presentation.
+python scripts/run_demo.py --pause
+```
+
+Individual commands are also available:
+
+```sh
+mkdir -p results
+# Simulate capture and seal the records, certificates, conclusions and actual report.
+# Refuses to overwrite an existing bundle; choose a new filename for another capture.
+python -m tfa --bundle results/mailbox.bundle.json --demo-step 4
+# Verify existing signatures and receipts, without issuing replacement ones.
+python -m tfa --verify-bundle results/mailbox.bundle.json
+# Read the ORIGINAL evidence receipts and anchors, then reconstruct.
+python -m tfa --from-bundle results/mailbox.bundle.json --demo-step 1
+python -m tfa --from-bundle results/mailbox.bundle.json --demo-step 2
+python -m tfa --from-bundle results/mailbox.bundle.json --demo-step 3
+# Verify and repeat the analysis with the recorded source version.
+python -m tfa --reproduce results/mailbox.bundle.json
+# Export a diagram with source-span references and named missing-provider evidence.
+python -m tfa --scenario cross --format mermaid --out results/cross-chain.mmd
+```
+
+The JSON bundle includes the original span receipts and witness anchors, capability
+certificates, missing-segment declarations, graph, five-plane projection, question
+answers, transformation ledger, self-trace, full report and a SHA-256 source manifest.
+Every payload component is hashed into a manifest and the manifest is witnessed.
+Changing a component, or recalculating its digest without a replacement seal, fails
+verification. `--reproduce` also checks the source manifest, then compares report,
+conclusions, ledger and self-trace. It never executes source from the bundle.
+
+**Capture and verification are different operations.** `--trace` imports raw JSON
+and seals it now; it cannot establish that the input was unchanged before ingestion.
+`--from-bundle` verifies preserved receipts and anchors before reconstruction.
+`--verify-bundle` verifies only, without signing anything. Exit status 0 means the
+operation passed; invalid bundles and tampering produce a non-zero status.
+
+**This is a development seal.** Its HMAC key is public in the source, so anyone can
+issue a replacement seal. It demonstrates the mechanics and detects changes relative
+to an existing seal; it provides no independent attestation or trusted timestamp.
+A real deployment requires a separately trusted, independent witness.
+
+The mailbox fixture deliberately leaves downstream identity and approval evidence
+unavailable: Q4 is partial and Q5 is a named gap. Tool-call versions and certificate
+IDs are explicit. Approval records must contain required, mode, decision, actor,
+policy_id and policy_version on the relevant execute_tool span; incomplete or
+unlinked records cannot answer Q5. Cross-provider Q2/Q6 additionally name the absent
+Provider-B telemetry. These fixtures illustrate the method, not the original evidence
+from any public investigation. The sample unverified association is explicitly
+simulated; no model is invoked and unrelated cases do not receive it.
+
 ## For investigators: using this in the real world
 
 This is a reference, not a deployable forensic product: it does not reach live providers, issue
@@ -77,7 +143,8 @@ put it to work today.
 
   Hand-written fixtures are a supported input; the synthetic trace is just one such fixture. To work
   with the results in code, `tfa.ingest.load_trace(path)` returns an episode you can pass straight to
-  `analyse` and `render_report`.
+  `analyse` and `render_report`. Raw input is newly sealed at ingestion; use a preserved bundle
+  to check integrity relative to its original seal.
 
 - **Test an agent's authority.** Encode the agent's real capability certificate (tools, operations,
   targets, purposes, argument constraints) and let the call-granularity check flag any call that
@@ -146,7 +213,12 @@ tfa/
   selftrace.py     the tool's own witnessed DCFP spans                              (D.3)
   synth.py         the synthetic episode                                            (D.4)
   report.py        end-to-end analysis and the admissibility-readiness report       (B7, D.2)
+  bundle.py        sealed package export, verification and reproduction             (A.6, B7)
+  presentation.py  compact terminal stages and Mermaid graph export                  (D.4)
   cli.py           the command-line entry point
+scripts/run_demo.py four-step runnable presentation with a tamper check
+demos/             four-minute MP4 presentation recording
+DEMO.md            commands and walkthrough for the presentation
 examples/          the synthetic trace and its expected report and summary
 tests/             one or more tests per acceptance criterion
 ```
@@ -166,6 +238,7 @@ Each criterion from the build brief is demonstrated on the synthetic trace and c
 | 7 | A ledger entry per derived object; one model-suggested association as an unverified lead | `test_transform`, `test_report` |
 | 8 | The tool's own actions emitted as DCFP spans, witnessed by the same W | `test_selftrace` |
 | 9 | An admissibility-readiness report listing evidence, named gaps and limitations, no guarantee | `test_report` |
+| 10 | Package tampering, preserved-input verification and repeatable analysis | `test_bundle`, `test_evidence_regressions` |
 
 ## What this is (and is not)
 
@@ -184,7 +257,8 @@ rates or claims of general acceptance; any GUI, service, or scale/performance wo
 
 - This is a reference implementation, not a product. There are **no measured error rates and no
   claim of general acceptance** - the field does not yet have these.
-- The integrity layer secures **record integrity** and provides an **independent attestation** of it.
+- The model uses witnessed **record integrity**; independent attestation requires an independent
+  witness. The supplied public-demo-key HMAC fixture does not provide independence.
   It does not make a nondeterministic system reproducible, establish why the system acted, prove the
   emitter reported faithfully, or prove that omitted events did not occur. **Integrity is a separate
   property from completeness**: one cannot protect through a hash chain what was never written.
@@ -194,8 +268,8 @@ rates or claims of general acceptance; any GUI, service, or scale/performance wo
   reached, against operator-witness collusion, and against clock manipulation**, which is why a real
   witness must be independently subpoenable.
 - The bundled witness is a **development stand-in**, not an independent third party. Every anchor it
-  issues says so. A real deployment requires a witness that is independently subpoenable of the
-  operator.
+  issues says so. Its demonstration key is public and allows replacement seals. A real deployment
+  requires a witness that is independently subpoenable of the operator.
 - The generated report is an **admissibility-readiness** report. It enumerates limitations and gaps
   and makes **no guarantee** of admission, accuracy or completeness.
 

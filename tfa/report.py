@@ -15,7 +15,7 @@ accuracy or completeness beyond what the synthetic data supports.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import List, Optional
 
 from . import __version__
@@ -25,11 +25,10 @@ from .graph import Graph, build_graph
 from .ingest import Ingested, ingest
 from .integrity import Anchor, HashChain, VerificationResult, Witness, verify_chain
 from .planes import Projection
+from .model import IntegrityStatus
 from .questions import Answer, resolve_all
 from .selftrace import SelfTracer
 from .synth import (
-    EXTERNAL_RECIPIENT,
-    PRINCIPAL_ID,
     Episode,
     default_witness,
     witness_episode,
@@ -43,8 +42,9 @@ STANDING_LIMITATIONS = (
     "This is a reference implementation, not a product.",
     "There are no measured error rates and no claim of general acceptance; the "
     "field does not yet have these (companion D.5).",
-    "The integrity layer secures record integrity and provides an independent "
-    "attestation of it. It does not make a nondeterministic system reproducible, "
+    "The integrity layer checks record integrity relative to a witnessed seal. "
+    "Independent attestation requires an independent witness. It does not make "
+    "a nondeterministic system reproducible, "
     "establish why the system acted, prove the emitter reported faithfully, or "
     "prove that omitted events did not occur. Integrity is a separate property "
     "from completeness (companion A.6).",
@@ -53,7 +53,7 @@ STANDING_LIMITATIONS = (
     "manipulation (companion A.6).",
     "The witness used here is a development stand-in, not an independent third "
     "party. A real deployment requires a witness independently subpoenable of "
-    "the operator (companion A.6).",
+    "the operator (companion A.6). Its public demo key permits replacement seals.",
     "The synthetic trace and this report make no claim of admissibility, "
     "accuracy or completeness beyond what the synthetic data supports.",
 )
@@ -79,7 +79,8 @@ class Analysis:
     unverified_leads: List[TransformationRecord]
 
 
-def analyse(episode: Episode, witness: Optional[Witness] = None) -> Analysis:
+def analyse(episode: Episode, witness: Optional[Witness] = None,
+            preserved=None) -> Analysis:
     """Run the full model over the episode, self-traced and ledgered."""
     if witness is None:
         witness = default_witness()
@@ -87,13 +88,21 @@ def analyse(episode: Episode, witness: Optional[Witness] = None) -> Analysis:
     tracer = SelfTracer(witness)
 
     # 1. Integrity: build and verify the witnessed episode chain.
-    chain, anchors = witness_episode(episode, witness)
+    chain, anchors = preserved if preserved is not None else witness_episode(episode, witness)
     verification = verify_chain(
         episode.spans, list(chain.store), anchors, witness, episode.seed
     )
+    if not verification.ok:
+        raise ValueError("evidence integrity verification failed: " + "; ".join(verification.messages))
+    # Validate identities before deriving anything; duplicates cannot be collapsed.
+    ingest(episode.spans)
+    span_records = [s.content_dict() for s in episode.spans]
+    context = {"spans": span_records,
+               "capability_certificates": episode.capability_certificates,
+               "missing_segments": [m.as_record() for m in episode.missing_segments]}
     tracer.record_action(
         "verify_integrity",
-        inputs=[episode.seed.hex(), [s.span_id for s in episode.spans]],
+        inputs=[episode.seed.hex(), context],
         output={"ok": verification.ok, "summary": verification.summary()},
     )
 
@@ -105,7 +114,9 @@ def analyse(episode: Episode, witness: Optional[Witness] = None) -> Analysis:
         output_id="partial-order",
         rule="ingest: parentage and effect links, never a global clock",
         inputs=[[s.content_dict() for s in episode.spans]],
-        output={"roots": ing.roots},
+        output={"roots": ing.roots, "predecessors": {
+            s.span_id: sorted(ing.partial_order.predecessors(s.span_id))
+            for s in episode.spans}},
     )
     tracer.record_action("ingest", output={"roots": ing.roots})
 
@@ -114,25 +125,26 @@ def analyse(episode: Episode, witness: Optional[Witness] = None) -> Analysis:
     ledger.record(
         output_id="plane-projection",
         rule="planes: pi projection (companion A.4)",
-        inputs=[[s.span_id for s in episode.spans]],
+        inputs=[span_records],
         output={p.value: projection.spans_in(p) for p in projection.by_plane},
     )
     tracer.record_action("project_planes")
 
     # 4. Graph, with a ledger entry for every reconstructed edge.
     graph = build_graph(episode.spans)
+    graph.edges = [replace(edge, integrity_status=IntegrityStatus.VERIFIED)
+                   for edge in graph.edges]
+    for node in graph.nodes.values():
+        ledger.record(output_id="node-" + node.node_id,
+                      rule="build_graph: actor or resource (companion A.2)",
+                      inputs=[span_records], output=asdict(node))
     for i, edge in enumerate(graph.edges):
         ledger.record(
             output_id=f"edge-{i}",
             rule=f"build_graph: {edge.edge_type.value}",
-            inputs=[list(edge.source_artefact)],
-            output={
-                "source": edge.source,
-                "target": edge.target,
-                "type": edge.edge_type.value,
-                "observation": edge.observation.value,
-                "confidence": edge.confidence.value,
-            },
+            inputs=[s.content_dict() for s in episode.spans
+                    if s.span_id in edge.source_artefact],
+            output=asdict(edge),
         )
     tracer.record_action("build_graph", output={"edges": len(graph.edges)})
 
@@ -144,8 +156,8 @@ def analyse(episode: Episode, witness: Optional[Witness] = None) -> Analysis:
         ledger.record(
             output_id=f"answer-{a.qid}",
             rule=f"resolve {a.qid}",
-            inputs=[list(a.evidence)],
-            output={"classification": a.classification.value, "value": a.value},
+            inputs=[context],
+            output=asdict(a),
         )
     tracer.record_action("resolve_questions", output={"count": len(answers)})
 
@@ -155,8 +167,9 @@ def analyse(episode: Episode, witness: Optional[Witness] = None) -> Analysis:
         ledger.record(
             output_id=f"capability-{c.span_id}",
             rule="capability: call-granularity scope check",
-            inputs=[c.span_id],
-            output={"in_scope": c.in_scope, "failed": list(c.failed_dimensions)},
+            inputs=[episode.span_by_id(c.span_id).content_dict(),
+                    episode.capability_certificates],
+            output=asdict(c),
         )
     tracer.record_action(
         "check_capability",
@@ -168,32 +181,40 @@ def analyse(episode: Episode, witness: Optional[Witness] = None) -> Analysis:
     ledger.record(
         output_id="completeness",
         rule="completeness: three senses (companion A.2)",
-        inputs=[[a.qid for a in answers], verified],
-        output=completeness.summary(),
+        inputs=[[asdict(a) for a in answers], verified],
+        output=asdict(completeness),
     )
     tracer.record_action("assess_completeness", output=completeness.summary())
 
     # 8. A model-suggested association, recorded ONLY as an unverified lead: the
     #    external recipient might be the principal's own alias. It is a lead to
     #    verify, never an evidential edge on the model's authority (companion D.3).
-    ledger.record_lead(
-        output_id="lead-external-recipient-alias",
-        rule="model-suggested correlation during reconstruction",
-        inputs=[{"recipient": EXTERNAL_RECIPIENT, "principal": PRINCIPAL_ID}],
-        suggestion={
-            "association": (
-                f"{EXTERNAL_RECIPIENT} may be a personal alias of {PRINCIPAL_ID}"
-            )
-        },
-        model_invocation="assistant-model (optional aid); output is a lead only",
-    )
-    tracer.record_action(
-        "record_lead",
-        note="model-suggested association recorded as an unverified lead only",
-    )
+    for span in episode.spans:
+        suggestion = span.get("dcfp.demo.lead")
+        if not isinstance(suggestion, dict) or not suggestion.get("recipient") or not suggestion.get("principal"):
+            continue
+        ledger.record_lead(
+            output_id="lead-external-recipient-alias",
+            rule="synthetic illustration of an unverified association",
+            inputs=[span.content_dict()],
+            suggestion={
+                "association": (
+                    f"{suggestion['recipient']} may be a personal alias of {suggestion['principal']}"
+                )
+            },
+            model_invocation="SIMULATED fixture suggestion; no model was invoked",
+            note="Synthetic lead only; no model was invoked and this is not evidence.",
+        )
+        tracer.record_action(
+            "record_lead",
+            note="synthetic association recorded as an unverified lead; no model invoked",
+        )
 
-    # 9. Build the report, then witness the self-trace head with the same W.
-    tracer.record_action("build_report")
+    # 9. Bind all derivations, then witness the analysis self-trace with the same W.
+    # bundle.py separately records and seals the rendered report bytes.
+    tracer.record_action("complete_analysis", inputs=context,
+                         output={"ledger": ledger.records(),
+                                 "answers": [asdict(a) for a in answers]})
     selftrace_anchor = tracer.witness_head()
 
     return Analysis(
@@ -256,6 +277,7 @@ def render_report(analysis: Analysis) -> str:
     out.append(a.verification.summary())
     out.append(f"chain head: {a.chain.head.hex()}")
     out.append(f"witnessed anchors: {len(a.anchors)}")
+    out.append("Raw trace inputs are sealed at ingestion; this does not verify their earlier history.")
     if not a.verification.independent_witness:
         out.append(
             "NOTE: the witness is a development stand-in, not an independent "
@@ -306,6 +328,7 @@ def render_report(analysis: Analysis) -> str:
     out.append(_line())
     out.append(f"schema-complete:     {a.completeness.schema_complete}")
     out.append(f"evidential-complete: {a.completeness.evidential_complete}")
+    out.append("This concerns support for the answers given; named gaps remain below.")
     out.append("per-question classification:")
     for qid in sorted(a.completeness.per_question):
         out.append(f"    {qid}: {a.completeness.per_question[qid]}")
@@ -352,7 +375,7 @@ def render_report(analysis: Analysis) -> str:
 
     # Transformation ledger
     out.append(_line())
-    out.append("TRANSFORMATION LEDGER")
+    out.append("TRANSFORMATION LEDGER (analysis-stage snapshot)")
     out.append(_line())
     out.append(
         f"{len(a.ledger)} records, each binding inputs by hash to a derived "
@@ -362,19 +385,21 @@ def render_report(analysis: Analysis) -> str:
 
     # Self-instrumentation
     out.append(_line())
-    out.append("SELF-INSTRUMENTATION (forensic-by-design about itself)")
+    out.append("SELF-INSTRUMENTATION (analysis-stage snapshot)")
     out.append(_line())
     out.append(
         f"{len(a.tracer.spans)} of the tool's own actions were emitted as DCFP "
         "spans in a separate hash chain, witnessed by the same W (companion D.3)."
     )
     out.append(f"self-trace chain head: {a.tracer.chain.head.hex()}")
+    out.append("Package export appends the rendered-report transformation and witnesses the extended self-trace.")
     out.append("")
 
     # Six dimensions
     out.append(_line())
     out.append("RELIABILITY AND ADMISSIBILITY DIMENSIONS (companion B Phase 7)")
     out.append(_line())
+    out.append("Declared readiness statements, not measured scores or a judicial validation.")
     dimensions = [
         ("Testable methodology",
          "The method is documented and deterministic; another examiner can "
@@ -391,8 +416,9 @@ def render_report(analysis: Analysis) -> str:
          "transformation ledger; the agent's own run is not replayable, and "
          "that nondeterminism is documented rather than concealed."),
         ("Chain of custody and record integrity",
-         "The witnessed hash chain establishes record integrity and independent "
-         "attestation (here a development stand-in). Authenticity, provenance "
+         "The witnessed hash chain checks record integrity relative to the seal. "
+         "The development witness does not provide independent attestation. "
+         "Authenticity, provenance "
          "and custody/handling records are established separately and are out "
          "of scope for this synthetic demonstration."),
     ]

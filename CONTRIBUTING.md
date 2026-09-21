@@ -68,7 +68,14 @@ it). Regenerate it with:
 python -m tfa --out examples/synthetic_report.txt
 ```
 
-and review the diff carefully - an unexpected change there is a signal, not a
+Also refresh `examples/synthetic_trace.json` if fixture records change and
+`examples/synthetic_summary.json` with `python -m tfa --format json --out
+examples/synthetic_summary.json`. The package regressions and four-step runner
+are part of CI; use `python scripts/run_demo.py` for the complete walkthrough.
+Generated bundles stay under ignored `results/` because their source manifest
+identifies the exact implementation that produced them.
+
+Review the diff carefully - an unexpected change there is a signal, not a
 chore.
 
 ## Commits and pull requests

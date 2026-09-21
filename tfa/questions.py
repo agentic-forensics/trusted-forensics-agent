@@ -140,58 +140,37 @@ def q2_which_model(
     missing_segments: Optional[Sequence[MissingSegment]] = None,
 ) -> Answer:
     """gen_ai.request.model, provider.name, agent.version from the inference span."""
-    inf = _first(spans, "inference")
+    inferences = _all(spans, "inference")
     affecting = _affecting(missing_segments, "Q2")
-    if inf is not None and inf.get("gen_ai.request.model"):
-        model = inf.get("gen_ai.request.model")
-        provider = inf.get("gen_ai.provider.name", "unknown provider")
-        version = inf.get("gen_ai.agent.version", "unknown version")
-        evidence = (inf.span_id, "gen_ai.request.model", "gen_ai.provider.name",
-                    "gen_ai.agent.version")
-        if affecting:
-            seg = affecting[0]
-            return Answer(
-                qid="Q2",
-                question="Which model and version?",
-                classification=Classification.PARTIAL,
-                value=(
-                    f"captured segment: {model} ({provider}), agent version "
-                    f"{version}. A further model was used in an uncaptured "
-                    f"segment ({seg.data_class}; party: {seg.party}), so the "
-                    "model picture is incomplete."
-                ),
-                evidence=evidence,
-                gap=NamedGap(party=seg.party, data_class=seg.data_class,
-                             note=seg.note),
-            )
-        return Answer(
-            qid="Q2",
-            question="Which model and version?",
-            classification=Classification.ANSWERED_DIRECT,
-            value=f"{model} ({provider}); agent version {version}",
-            evidence=evidence,
-        )
+    known = [s for s in inferences if s.get("gen_ai.request.model")]
+    evidence = tuple(s.span_id for s in known)
+    descriptions = list(dict.fromkeys(
+        f"{s.get('gen_ai.request.model')} ({s.get('gen_ai.provider.name', 'unknown provider')}); "
+        f"agent version {s.get('gen_ai.agent.version', 'unknown version')}"
+        for s in known
+    ))
+    incomplete = len(known) != len(inferences) or any(
+        not s.get("gen_ai.provider.name") or not s.get("gen_ai.agent.version")
+        for s in known
+    )
+    gap = None
     if affecting:
-        seg = affecting[0]
-        return Answer(
-            qid="Q2",
-            question="Which model and version?",
-            classification=Classification.UNANSWERED_UNAVAILABLE,
-            value=(
-                "the model ran in an uncaptured segment; no inference span is "
-                "available"
-            ),
-            gap=NamedGap(party=seg.party, data_class=seg.data_class, note=seg.note),
+        gap = NamedGap(
+            party="; ".join(dict.fromkeys(m.party for m in affecting)),
+            data_class="; ".join(dict.fromkeys(m.data_class for m in affecting)),
+            note="; ".join(m.note for m in affecting if m.note),
         )
+    elif incomplete or not known:
+        gap = NamedGap("model provider / agent runtime",
+                       "inference spans with model, provider and agent version")
+    value = " | ".join(descriptions) if known else "no inference span recording the model was found"
+    if gap:
+        value += ". The model picture is incomplete; see the named gap."
     return Answer(
-        qid="Q2",
-        question="Which model and version?",
-        classification=Classification.UNANSWERED_UNAVAILABLE,
-        value="no inference span recording the model was found",
-        gap=NamedGap(
-            party="model provider",
-            data_class="inference span with gen_ai.request.model and version",
-        ),
+        "Q2", "Which model and version?",
+        (Classification.PARTIAL if gap else Classification.ANSWERED_DIRECT)
+        if known else Classification.UNANSWERED_UNAVAILABLE,
+        value, evidence, gap,
     )
 
 
@@ -232,74 +211,77 @@ def q3_tools_exposed(
 
 def q4_whose_identity(spans: Sequence[Span]) -> Answer:
     """Auth subject / service principal on tool and downstream spans; agent id."""
-    subjects = set()
-    agents = set()
-    for s in spans:
-        subj = s.get("auth.subject") or s.get("dcfp.principal.id")
-        if subj:
-            subjects.add(subj)
-        agent = s.get("gen_ai.agent.id") or s.get("dcfp.agent.id")
-        if agent:
-            agents.add(agent)
-    if subjects:
-        return Answer(
-            qid="Q4",
-            question="Whose identity acted?",
-            classification=Classification.ANSWERED_DIRECT,
-            value=(
-                f"thin attribution: actions ran under {sorted(subjects)} "
-                f"via agent {sorted(agents)}. This establishes the identity the "
-                "action ran under, not that the principal directed it."
-            ),
-            evidence=("auth.subject", "dcfp.agent.id"),
+    acting = [s for s in spans if s.operation_name in ("execute_tool", "downstream")]
+    recorded = [s for s in acting if s.get("auth.subject")]
+    missing = [s.span_id for s in acting if not s.get("auth.subject")]
+    subjects = sorted({s.get("auth.subject") for s in recorded})
+    agents = sorted({s.get("dcfp.agent.id") or s.get("gen_ai.agent.id")
+                     for s in recorded
+                     if s.get("dcfp.agent.id") or s.get("gen_ai.agent.id")})
+    gap = None
+    if missing or not recorded:
+        gap = NamedGap(
+            "identity provider / executing service",
+            "auth subject / service principal on tool and downstream spans",
+            "unidentified acting spans: " + ", ".join(missing) if missing else "no acting identity records",
         )
+    value = (
+        f"thin attribution: recorded actions ran under {subjects} via agent {agents}. "
+        "This establishes the recorded acting identity, not that the principal directed it."
+        if recorded else "no auth subject was recorded on the acting spans"
+    )
     return Answer(
-        qid="Q4",
-        question="Whose identity acted?",
-        classification=Classification.UNANSWERED_UNAVAILABLE,
-        value="no auth subject was recorded on the acting spans",
-        gap=NamedGap(
-            party="identity provider",
-            data_class="auth subject / service principal on tool spans",
-        ),
+        "Q4", "Whose identity acted?",
+        (Classification.PARTIAL if gap else Classification.ANSWERED_DIRECT)
+        if recorded else Classification.UNANSWERED_UNAVAILABLE,
+        value, tuple(s.span_id for s in recorded), gap,
     )
 
 
 def q5_auto_approved(spans: Sequence[Span]) -> Answer:
-    """Positive dcfp.approval.* record; absence is a gap, not auto-approval."""
+    """Require a positive, complete approval record on an execution (A.5 Q5).
+
+    This reference accepts inline records on tool calls. An unlinked approval
+    elsewhere is not evidence that the recorded execution was approved.
+    """
+    fields = ("required", "mode", "decision", "actor", "policy_id", "policy_version")
+    calls = _all(spans, "execute_tool")
     approvals = []
-    for s in spans:
-        approval_keys = [k for k in s.attributes if k.startswith("dcfp.approval")]
-        if approval_keys:
-            approvals.append((s.span_id, approval_keys))
-    if approvals:
-        span_id, keys = approvals[0]
-        return Answer(
-            qid="Q5",
-            question="What was auto-approved without human review?",
-            classification=Classification.ANSWERED_DIRECT,
-            value=f"approval record present on {span_id}: {sorted(keys)}",
-            evidence=(span_id, *keys),
+    missing = []
+    for span in calls:
+        values = {key: span.get("dcfp.approval." + key) for key in fields}
+        complete = (
+            isinstance(values["required"], bool)
+            and values["mode"] in ("auto", "automatic", "manual", "human")
+            and values["decision"] in ("approved", "denied")
+            and all(isinstance(values[k], str) and values[k].strip()
+                    for k in ("actor", "policy_id", "policy_version"))
         )
-    # No positive approval record. The model forbids reading absence as
-    # auto-approval unless the approval instrumentation has first been shown
-    # complete (it has not). Record a named gap.
+        if complete:
+            approvals.append((span, values))
+        else:
+            missing.append(span.span_id)
+    gap = None
+    if missing or not calls:
+        gap = NamedGap(
+            "agent runtime / approval service",
+            "dcfp.approval.* records (required, mode, decision, actor, policy id and version)",
+            "complete inline approval records required for: " + (", ".join(missing) or "executions"),
+        )
+    if approvals:
+        value = "; ".join(
+            f"{span.span_id}: " + ", ".join(f"{k}={v!r}" for k, v in values.items())
+            for span, values in approvals
+        )
+    else:
+        value = ("no complete dcfp.approval.* record is present on the decision-to-execution "
+                 "edge. Absence is NOT read as auto-approval; the approval "
+                 "instrumentation has not been shown to be complete.")
     return Answer(
-        qid="Q5",
-        question="What was auto-approved without human review?",
-        classification=Classification.UNANSWERED_UNAVAILABLE,
-        value=(
-            "no dcfp.approval.* record is present on the decision-to-execution "
-            "edge. Absence is NOT read as auto-approval; the approval "
-            "instrumentation has not been shown to be complete."
-        ),
-        gap=NamedGap(
-            party="agent runtime / approval service",
-            data_class="dcfp.approval.* records (required, mode, decision, actor, "
-                       "policy id and version)",
-            note="closing this requires either the positive approval records or "
-                 "a demonstration that approval instrumentation is complete.",
-        ),
+        "Q5", "What was auto-approved without human review?",
+        (Classification.PARTIAL if gap else Classification.ANSWERED_DIRECT)
+        if approvals else Classification.UNANSWERED_UNAVAILABLE,
+        value, tuple(span.span_id for span, _ in approvals), gap,
     )
 
 

@@ -59,12 +59,17 @@
     }
   },
   "conversation_id": "conv-7f3a91",
+  "missing_segments": [],
   "seed_hex": "7466612d646366702d7265666572656e63652d736565642d7631",
   "spans": [
     {
       "attributes": {
         "auth.subject": "alice@acme.example",
         "dcfp.capability.cert_id": "cert-mailbox-triage-1",
+        "dcfp.demo.lead": {
+          "principal": "alice@acme.example",
+          "recipient": "external-archive@mailbox-backup.example"
+        },
         "dcfp.principal.id": "alice@acme.example",
         "gen_ai.agent.id": "agent-mailbox-triage",
         "gen_ai.agent.name": "Mailbox Triage Agent",
@@ -114,9 +119,11 @@
       "attributes": {
         "auth.subject": "alice@acme.example",
         "dcfp.agent.id": "agent-mailbox-triage",
+        "dcfp.capability.cert_id": "cert-mailbox-triage-1",
         "dcfp.tool.operation": "read",
         "dcfp.tool.purpose": "triage",
         "dcfp.tool.target": "mailbox://alice@acme.example/inbox",
+        "gen_ai.agent.version": "1.4.2",
         "gen_ai.conversation.id": "conv-7f3a91",
         "gen_ai.operation.name": "execute_tool",
         "gen_ai.tool.arguments": {
@@ -213,9 +220,11 @@
       "attributes": {
         "auth.subject": "alice@acme.example",
         "dcfp.agent.id": "agent-mailbox-triage",
+        "dcfp.capability.cert_id": "cert-mailbox-triage-1",
         "dcfp.tool.operation": "send",
         "dcfp.tool.purpose": "forward confidential contract for archival",
         "dcfp.tool.target": "external-archive@mailbox-backup.example",
+        "gen_ai.agent.version": "1.4.2",
         "gen_ai.conversation.id": "conv-7f3a91",
         "gen_ai.operation.name": "execute_tool",
         "gen_ai.tool.arguments": {

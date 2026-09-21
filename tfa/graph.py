@@ -273,7 +273,7 @@ def build_graph(spans: Sequence[Span]) -> Graph:
             # authenticated-as: the agent acted under a principal identity (thin
             # attribution, Q4). A delegation/authority edge resting on the auth
             # subject, not on parentage.
-            principal = span.get("auth.subject") or span.get("dcfp.principal.id")
+            principal = span.get("auth.subject")
             if agent and principal:
                 graph.add_delegation_edge(
                     Edge(
@@ -286,7 +286,7 @@ def build_graph(spans: Sequence[Span]) -> Graph:
                         note="tool call ran under the principal's identity",
                     ),
                     evidence_keys=[
-                        k for k in ("auth.subject", "dcfp.principal.id")
+                        k for k in ("auth.subject",)
                         if k in span.attributes
                     ],
                 )
@@ -296,11 +296,11 @@ def build_graph(spans: Sequence[Span]) -> Graph:
             # on, via dcfp.effect.observed (Q7 actual).
             observed_call = span.get("dcfp.effect.observed")
             target = span.get("dcfp.egress.recipient") or span.get("server.address")
-            tool_name = None
-            for s in spans:
-                if s.get("gen_ai.tool.call.id") == observed_call:
-                    tool_name = s.get("gen_ai.tool.name")
-                    break
+            matching = [s for s in spans if observed_call
+                        and s.operation_name == "execute_tool"
+                        and s.get("gen_ai.tool.call.id") == observed_call]
+            call = matching[0] if len(matching) == 1 else None
+            tool_name = call.get("gen_ai.tool.name") if call else None
             if tool_name and target:
                 graph.add_node(Node(_node_id(NodeType.TARGET, target), NodeType.TARGET, target))
                 graph.add_edge(
@@ -308,7 +308,7 @@ def build_graph(spans: Sequence[Span]) -> Graph:
                         source=_node_id(NodeType.TOOL, tool_name),
                         target=_node_id(NodeType.TARGET, target),
                         edge_type=EdgeType.PRODUCED_EFFECT_ON,
-                        source_artefact=(span.span_id,),
+                        source_artefact=(call.span_id, span.span_id),
                         observation=Observation.OBSERVED,
                         confidence=Confidence.HIGH,
                         note="observed downstream effect linked by dcfp.effect.observed",

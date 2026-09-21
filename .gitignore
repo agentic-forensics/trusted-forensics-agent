@@ -4,10 +4,12 @@ __pycache__/
 .DS_Store
 .venv/
 results/
+screencasts/
 .claude/settings.local.json
 
 # Source papers and internal build/spec docs are local-only, never committed
 docs/*.docx
 docs/*.md
+docs/*.pdf
 specs/
 CLAUDE_CODE_BRIEFING_TFA_reference_implementation.md

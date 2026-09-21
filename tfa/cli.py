@@ -14,9 +14,13 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+from pathlib import Path
 import sys
 from typing import List, Optional
 
+from .bundle import (analyse_bundle, analysis_record, create_bundle, load_bundle,
+                     reproduce_bundle, verify_bundle)
+from .presentation import demo_step, graph_mermaid
 from .capability import boundary_subversions
 from .ingest import load_trace
 from .integrity import verify_chain
@@ -48,6 +52,8 @@ def _json_summary(analysis) -> dict:
         "questions": [
             {
                 "qid": ans.qid,
+                "answer": ans.value,
+                "evidence": list(ans.evidence),
                 "classification": ans.classification.value,
                 "gap": None if ans.gap is None
                 else {"party": ans.gap.party, "data_class": ans.gap.data_class},
@@ -70,6 +76,8 @@ def _json_summary(analysis) -> dict:
             for s in a.episode.missing_segments
         ],
         "selftrace_actions": len(a.tracer.spans),
+        "reconstruction": analysis_record(a),
+        "transformation_ledger": a.ledger.records(),
     }
 
 
@@ -110,7 +118,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "Runs the model on a synthetic trace.",
     )
     parser.add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format", choices=["text", "json", "mermaid"], default="text",
         help="report format (default: text)",
     )
     parser.add_argument(
@@ -134,20 +142,75 @@ def main(argv: Optional[List[str]] = None) -> int:
              "'cross' are the single- and cross-provider worked cases "
              "(companion C.1/C.2); ignored when --trace is given",
     )
+    parser.add_argument("--bundle", metavar="FILE", help="seal and export a new evidence bundle")
+    sources = parser.add_mutually_exclusive_group()
+    sources.add_argument("--verify-bundle", metavar="FILE", help="verify existing seals; never re-seal")
+    sources.add_argument("--from-bundle", metavar="FILE", help="analyse a verified preserved bundle")
+    sources.add_argument("--reproduce", metavar="FILE", help="verify and repeat the sealed analysis")
+    parser.add_argument("--demo-step", type=int, choices=[1, 2, 3, 4],
+                        help="compact presentation view for slide 16")
     args = parser.parse_args(argv)
+    source = args.verify_bundle or args.from_bundle or args.reproduce
+    if source and (args.trace or args.tamper is not None or args.scenario != "synthetic"):
+        parser.error("bundle input cannot be combined with --trace, --scenario or --tamper")
+    if (args.verify_bundle or args.reproduce) and (args.bundle or args.out or args.demo_step):
+        parser.error("verification/reproduction cannot be combined with output options")
+    if args.tamper is not None and (args.bundle or args.out or args.demo_step):
+        parser.error("--tamper is a standalone capture simulation")
+    if args.demo_step and args.format != "text":
+        parser.error("--demo-step requires text format")
+
+    if args.verify_bundle or args.reproduce:
+        try:
+            bundle = load_bundle(source)
+            checked = reproduce_bundle(bundle) if args.reproduce else verify_bundle(bundle)
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            print(f"could not verify bundle: {exc}", file=sys.stderr)
+            return 1
+        action = "REPRODUCTION" if args.reproduce else "BUNDLE VERIFICATION"
+        print(f"{action}: {'PASS' if checked.ok else 'FAIL'}")
+        print("Development witness, public demo key; not independent attestation.")
+        for message in checked.messages:
+            print(f"  - {message}")
+        if checked.ok and args.reproduce:
+            print("Report, conclusions, transformation ledger and self-trace match the sealed record.")
+        return 0 if checked.ok else 1
 
     try:
-        episode = load_trace(args.trace) if args.trace else SCENARIOS[args.scenario]()
-    except (OSError, ValueError) as exc:
-        print(f"could not load trace: {exc}", file=sys.stderr)
-        return 2
+        if args.out and (args.from_bundle or args.trace):
+            input_path = args.from_bundle or args.trace
+            if Path(args.out).resolve() == Path(input_path).resolve():
+                raise ValueError("report output must not overwrite the input evidence")
+        if args.bundle and Path(args.bundle).exists():
+            raise ValueError("bundle output already exists; choose a new path to preserve the original")
+        if args.bundle and args.out and Path(args.bundle).resolve() == Path(args.out).resolve():
+            raise ValueError("bundle and report output must use different paths")
+        if args.from_bundle:
+            analysis = analyse_bundle(load_bundle(args.from_bundle))
+        else:
+            try:
+                episode = load_trace(args.trace) if args.trace else SCENARIOS[args.scenario]()
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                print(f"could not load trace: {exc}", file=sys.stderr)
+                return 2
+            if args.tamper is not None:
+                return _run_tamper(args.tamper, episode)
+            analysis = analyse(episode)
+        if args.bundle:
+            package = create_bundle(analysis)
+            # Exclusive creation protects an existing preserved bundle.
+            with open(args.bundle, "x", encoding="utf-8") as stream:
+                json.dump(package, stream, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False)
+                stream.write("\n")
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        print(f"could not analyse or package evidence: {exc}", file=sys.stderr)
+        return 1
 
-    if args.tamper is not None:
-        return _run_tamper(args.tamper, episode)
-
-    analysis = analyse(episode)
-
-    if args.format == "json":
+    if args.demo_step:
+        output = demo_step(analysis, args.demo_step, bool(args.from_bundle), args.bundle or args.from_bundle or "")
+    elif args.format == "mermaid":
+        output = graph_mermaid(analysis)
+    elif args.format == "json":
         output = json.dumps(_json_summary(analysis), indent=2, sort_keys=True) + "\n"
     else:
         output = render_report(analysis)

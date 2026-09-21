@@ -136,13 +136,15 @@ class TransformationLedger:
                 "a model-suggested lead cannot be promoted without independent "
                 "verifying evidence (companion D.3)"
             )
-        for i, rec in enumerate(self._records):
+        for rec in reversed(self._records):
             if rec.output_id == output_id and rec.is_lead:
+                if rec.promoted:
+                    raise ValueError(f"lead {output_id!r} has already been promoted")
                 promoted = TransformationRecord(
                     output_id=rec.output_id,
-                    rule=rec.rule,
-                    code_version=rec.code_version,
-                    input_hashes=rec.input_hashes
+                    rule="promote_lead: independent evidence verification",
+                    code_version=self._code_version,
+                    input_hashes=(hash_input(rec.as_record()),)
                     + tuple(hash_input(e) for e in verifying_evidence),
                     output_hash=rec.output_hash,
                     model_invocation=rec.model_invocation,
@@ -151,15 +153,22 @@ class TransformationLedger:
                     promoted=True,
                     note="lead verified against independent evidence and promoted.",
                 )
-                self._records[i] = promoted
+                # Preserve the original lead, its inputs and its notes. The
+                # promotion is a separate transformation linked by hash (D.3).
+                self._records.append(promoted)
                 return promoted
         raise KeyError(f"no unpromoted lead with output_id {output_id!r}")
 
     def leads(self) -> List[TransformationRecord]:
-        return [r for r in self._records if r.is_lead]
+        """Return the latest state of each lead; records() retains its history."""
+        latest = {}
+        for rec in self._records:
+            if rec.is_lead:
+                latest[rec.output_id] = rec
+        return list(latest.values())
 
     def unverified_leads(self) -> List[TransformationRecord]:
-        return [r for r in self._records if r.is_lead and not r.promoted]
+        return [r for r in self.leads() if not r.promoted]
 
     def records(self) -> List[dict]:
         return [r.as_record() for r in self._records]

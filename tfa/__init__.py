@@ -11,4 +11,4 @@ Crime: A Forensic Model and Method"; module docstrings cite its sections.
 Standard library only. Deterministic. SHA-256.
 """
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"

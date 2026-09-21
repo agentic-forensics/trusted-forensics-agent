@@ -47,8 +47,18 @@ class Ingested:
         return None
 
 
+def _reject_duplicate_span_ids(spans: List[Span]) -> None:
+    """Protect the span-id keyed reconstruction from silent record loss (A.2)."""
+    seen = set()
+    for span in spans:
+        if span.span_id in seen:
+            raise ValueError(f"duplicate span_id {span.span_id!r}")
+        seen.add(span.span_id)
+
+
 def ingest(spans: List[Span]) -> Ingested:
     """Build the partial order and correlation indices from a span set."""
+    _reject_duplicate_span_ids(spans)
     order = PartialOrder()
     by_id: Dict[str, Span] = {}
     for span in spans:
@@ -143,6 +153,7 @@ def load_trace(path: str):
         raise ValueError(f"trace file {path!r} contains no spans")
 
     spans = [_span_from_record(r) for r in records]
+    _reject_duplicate_span_ids(spans)
     if all(s.capture_index is not None for s in spans):
         spans.sort(key=lambda s: s.capture_index)
 

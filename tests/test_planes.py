@@ -32,8 +32,8 @@ class TestProjection(unittest.TestCase):
         )
 
     def test_tool_calls_are_hands(self):
-        self.assertEqual(self._planes("span-tool-emailread"), {Plane.HANDS})
-        self.assertEqual(self._planes("span-tool-emailsend"), {Plane.HANDS})
+        self.assertEqual(self._planes("span-tool-emailread"), {Plane.HANDS, Plane.DNA})
+        self.assertEqual(self._planes("span-tool-emailsend"), {Plane.HANDS, Plane.DNA})
 
     def test_downstream_is_hands(self):
         self.assertEqual(self._planes("span-egress-http"), {Plane.HANDS})

@@ -1,5 +1,6 @@
 """Tests for ingest and the partial order (companion A.2)."""
 
+import dataclasses
 import unittest
 
 from tfa.ingest import ingest
@@ -43,6 +44,20 @@ class TestIngest(unittest.TestCase):
         span = self.ing.by_call_id("call-send-1")
         self.assertIsNotNone(span)
         self.assertEqual(span.span_id, "span-tool-emailsend")
+
+    def test_duplicate_span_ids_rejected_instead_of_overwriting_evidence(self):
+        original = self.ep.spans[0]
+        replacement = dataclasses.replace(original, operation_name="execute_tool")
+        with self.assertRaisesRegex(ValueError, "duplicate span_id"):
+            ingest(self.ep.spans + [replacement])
+
+    def test_duplicate_span_ids_across_traces_are_rejected(self):
+        # Correlation currently uses span_id as its key, so a second trace must
+        # not silently replace the first record even when trace_ids differ.
+        original = self.ep.spans[0]
+        other_trace = dataclasses.replace(original, trace_id="another-trace")
+        with self.assertRaisesRegex(ValueError, "duplicate span_id"):
+            ingest([original, other_trace])
 
 
 if __name__ == "__main__":

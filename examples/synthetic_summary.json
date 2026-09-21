@@ -16,7 +16,7 @@
       "Q1": "answered from direct evidence",
       "Q2": "answered from direct evidence",
       "Q3": "answered from direct evidence",
-      "Q4": "answered from direct evidence",
+      "Q4": "partially answered",
       "Q5": "unanswered because the evidence is unavailable",
       "Q6": "answered from direct evidence",
       "Q7": "answered from direct evidence"
@@ -25,34 +25,60 @@
   },
   "integrity": {
     "anchors": 2,
-    "chain_head": "1b2bd56e9300e96e29f797f48c0f34553c7840f299bad23fd07ac2758f14c0b7",
+    "chain_head": "b1bdcf9f52b8b6e07e7af717034346e2601f73a5f753faa2b55be4275610cfcc",
     "independent_witness": false,
     "ok": true,
     "summary": "tamper-evident: chain intact and attested by a development stand-in witness (not independent)"
   },
+  "missing_segments": [],
   "questions": [
     {
+      "answer": "alice@acme.example: 'Triage my inbox and summarise anything urgent.'",
       "classification": "answered from direct evidence",
+      "evidence": [
+        "span-invoke-agent",
+        "dcfp.principal.id",
+        "gen_ai.input.messages"
+      ],
       "gap": null,
       "qid": "Q1"
     },
     {
+      "answer": "examplelm-2-medium (ExampleAI); agent version 1.4.2",
       "classification": "answered from direct evidence",
+      "evidence": [
+        "span-inference-1"
+      ],
       "gap": null,
       "qid": "Q2"
     },
     {
+      "answer": "declared: ['calendar.read', 'email.read', 'email.send']; observed in use: ['email.read', 'email.send']",
       "classification": "answered from direct evidence",
+      "evidence": [
+        "span-create-agent",
+        "gen_ai.request.tools"
+      ],
       "gap": null,
       "qid": "Q3"
     },
     {
-      "classification": "answered from direct evidence",
-      "gap": null,
+      "answer": "thin attribution: recorded actions ran under ['alice@acme.example'] via agent ['agent-mailbox-triage']. This establishes the recorded acting identity, not that the principal directed it.",
+      "classification": "partially answered",
+      "evidence": [
+        "span-tool-emailread",
+        "span-tool-emailsend"
+      ],
+      "gap": {
+        "data_class": "auth subject / service principal on tool and downstream spans",
+        "party": "identity provider / executing service"
+      },
       "qid": "Q4"
     },
     {
+      "answer": "no complete dcfp.approval.* record is present on the decision-to-execution edge. Absence is NOT read as auto-approval; the approval instrumentation has not been shown to be complete.",
       "classification": "unanswered because the evidence is unavailable",
+      "evidence": [],
       "gap": {
         "data_class": "dcfp.approval.* records (required, mode, decision, actor, policy id and version)",
         "party": "agent runtime / approval service"
@@ -60,18 +86,804 @@
       "qid": "Q5"
     },
     {
+      "answer": "ingested from ['retrieval:drive://acme/legal/contracts', 'tool-result:email.read']. An injected instruction was present in ingested content.",
       "classification": "answered from direct evidence",
+      "evidence": [
+        "span-retrieval-contract",
+        "span-tool-emailread"
+      ],
       "gap": null,
       "qid": "Q6"
     },
     {
+      "answer": "stated intent (Brain): 'email.send confidential contract to archive'. Observed effect (Hands): POST smtp-relay.mailbox-backup.example (recipient external-archive@mailbox-backup.example) linked to call-send-1. The observed effect is linked to the tool call by dcfp.effect.observed.",
       "classification": "answered from direct evidence",
+      "evidence": [
+        "span-egress-http",
+        "span-inference-1"
+      ],
       "gap": null,
       "qid": "Q7"
     }
   ],
+  "reconstruction": {
+    "answers": [
+      {
+        "classification": "answered from direct evidence",
+        "evidence": [
+          "span-invoke-agent",
+          "dcfp.principal.id",
+          "gen_ai.input.messages"
+        ],
+        "gap": null,
+        "qid": "Q1",
+        "question": "Who set the goal?",
+        "value": "alice@acme.example: 'Triage my inbox and summarise anything urgent.'"
+      },
+      {
+        "classification": "answered from direct evidence",
+        "evidence": [
+          "span-inference-1"
+        ],
+        "gap": null,
+        "qid": "Q2",
+        "question": "Which model and version?",
+        "value": "examplelm-2-medium (ExampleAI); agent version 1.4.2"
+      },
+      {
+        "classification": "answered from direct evidence",
+        "evidence": [
+          "span-create-agent",
+          "gen_ai.request.tools"
+        ],
+        "gap": null,
+        "qid": "Q3",
+        "question": "What tools were exposed, and at what scope?",
+        "value": "declared: ['calendar.read', 'email.read', 'email.send']; observed in use: ['email.read', 'email.send']"
+      },
+      {
+        "classification": "partially answered",
+        "evidence": [
+          "span-tool-emailread",
+          "span-tool-emailsend"
+        ],
+        "gap": {
+          "data_class": "auth subject / service principal on tool and downstream spans",
+          "note": "unidentified acting spans: span-egress-http",
+          "party": "identity provider / executing service"
+        },
+        "qid": "Q4",
+        "question": "Whose identity acted?",
+        "value": "thin attribution: recorded actions ran under ['alice@acme.example'] via agent ['agent-mailbox-triage']. This establishes the recorded acting identity, not that the principal directed it."
+      },
+      {
+        "classification": "unanswered because the evidence is unavailable",
+        "evidence": [],
+        "gap": {
+          "data_class": "dcfp.approval.* records (required, mode, decision, actor, policy id and version)",
+          "note": "complete inline approval records required for: span-tool-emailread, span-tool-emailsend",
+          "party": "agent runtime / approval service"
+        },
+        "qid": "Q5",
+        "question": "What was auto-approved without human review?",
+        "value": "no complete dcfp.approval.* record is present on the decision-to-execution edge. Absence is NOT read as auto-approval; the approval instrumentation has not been shown to be complete."
+      },
+      {
+        "classification": "answered from direct evidence",
+        "evidence": [
+          "span-retrieval-contract",
+          "span-tool-emailread"
+        ],
+        "gap": null,
+        "qid": "Q6",
+        "question": "What context was ingested, and when?",
+        "value": "ingested from ['retrieval:drive://acme/legal/contracts', 'tool-result:email.read']. An injected instruction was present in ingested content."
+      },
+      {
+        "classification": "answered from direct evidence",
+        "evidence": [
+          "span-egress-http",
+          "span-inference-1"
+        ],
+        "gap": null,
+        "qid": "Q7",
+        "question": "What actually ran downstream?",
+        "value": "stated intent (Brain): 'email.send confidential contract to archive'. Observed effect (Hands): POST smtp-relay.mailbox-backup.example (recipient external-archive@mailbox-backup.example) linked to call-send-1. The observed effect is linked to the tool call by dcfp.effect.observed."
+      }
+    ],
+    "capability_checks": [
+      {
+        "failed_dimensions": [],
+        "in_scope": true,
+        "operation": "read",
+        "purpose": "triage",
+        "reason": "in scope",
+        "span_id": "span-tool-emailread",
+        "target": "mailbox://alice@acme.example/inbox",
+        "tool": "email.read"
+      },
+      {
+        "failed_dimensions": [
+          "target",
+          "purpose",
+          "arguments"
+        ],
+        "in_scope": false,
+        "operation": "send",
+        "purpose": "forward confidential contract for archival",
+        "reason": "target 'external-archive@mailbox-backup.example' not within permitted targets; purpose 'forward confidential contract for archival' not within permitted purposes; recipient_domain != acme.example",
+        "span_id": "span-tool-emailsend",
+        "target": "external-archive@mailbox-backup.example",
+        "tool": "email.send"
+      }
+    ],
+    "completeness": {
+      "case_sufficiency": "Not assessed. Case sufficiency depends on the specific proposition and legal standard at issue and is out of scope for this reference (companion A.2).",
+      "evidential_by_question": {
+        "Q1": true,
+        "Q2": true,
+        "Q3": true,
+        "Q4": true,
+        "Q6": true,
+        "Q7": true
+      },
+      "evidential_complete": true,
+      "named_gaps": [
+        [
+          "Q4",
+          {
+            "data_class": "auth subject / service principal on tool and downstream spans",
+            "note": "unidentified acting spans: span-egress-http",
+            "party": "identity provider / executing service"
+          }
+        ],
+        [
+          "Q5",
+          {
+            "data_class": "dcfp.approval.* records (required, mode, decision, actor, policy id and version)",
+            "note": "complete inline approval records required for: span-tool-emailread, span-tool-emailsend",
+            "party": "agent runtime / approval service"
+          }
+        ]
+      ],
+      "per_question": {
+        "Q1": "answered from direct evidence",
+        "Q2": "answered from direct evidence",
+        "Q3": "answered from direct evidence",
+        "Q4": "partially answered",
+        "Q5": "unanswered because the evidence is unavailable",
+        "Q6": "answered from direct evidence",
+        "Q7": "answered from direct evidence"
+      },
+      "schema_complete": true,
+      "unresolved": []
+    },
+    "graph": {
+      "edges": [
+        {
+          "confidence": "high",
+          "edge_type": "instructed",
+          "integrity_status": "verified",
+          "note": "principal set the goal under the conversation",
+          "observation": "observed",
+          "source": "principal:alice@acme.example",
+          "source_artefact": [
+            "span-invoke-agent"
+          ],
+          "target": "agent:agent-mailbox-triage"
+        },
+        {
+          "confidence": "high",
+          "edge_type": "invoked",
+          "integrity_status": "verified",
+          "note": "agent invoked the tool",
+          "observation": "observed",
+          "source": "agent:agent-mailbox-triage",
+          "source_artefact": [
+            "span-tool-emailread"
+          ],
+          "target": "tool:email.read"
+        },
+        {
+          "confidence": "high",
+          "edge_type": "authenticated_as",
+          "integrity_status": "verified",
+          "note": "tool call ran under the principal's identity",
+          "observation": "observed",
+          "source": "agent:agent-mailbox-triage",
+          "source_artefact": [
+            "span-tool-emailread"
+          ],
+          "target": "principal:alice@acme.example"
+        },
+        {
+          "confidence": "high",
+          "edge_type": "retrieved_from",
+          "integrity_status": "verified",
+          "note": "",
+          "observation": "observed",
+          "source": "agent:agent-mailbox-triage",
+          "source_artefact": [
+            "span-retrieval-contract"
+          ],
+          "target": "retrieval_source:drive://acme/legal/contracts"
+        },
+        {
+          "confidence": "medium",
+          "edge_type": "supplied_context_to",
+          "integrity_status": "verified",
+          "note": "",
+          "observation": "observed",
+          "source": "retrieval_source:drive://acme/legal/contracts",
+          "source_artefact": [
+            "span-retrieval-contract"
+          ],
+          "target": "agent:agent-mailbox-triage"
+        },
+        {
+          "confidence": "high",
+          "edge_type": "invoked",
+          "integrity_status": "verified",
+          "note": "agent invoked the model (inference operation)",
+          "observation": "observed",
+          "source": "agent:agent-mailbox-triage",
+          "source_artefact": [
+            "span-inference-1"
+          ],
+          "target": "model:examplelm-2-medium"
+        },
+        {
+          "confidence": "high",
+          "edge_type": "invoked",
+          "integrity_status": "verified",
+          "note": "agent invoked the tool",
+          "observation": "observed",
+          "source": "agent:agent-mailbox-triage",
+          "source_artefact": [
+            "span-tool-emailsend"
+          ],
+          "target": "tool:email.send"
+        },
+        {
+          "confidence": "high",
+          "edge_type": "authenticated_as",
+          "integrity_status": "verified",
+          "note": "tool call ran under the principal's identity",
+          "observation": "observed",
+          "source": "agent:agent-mailbox-triage",
+          "source_artefact": [
+            "span-tool-emailsend"
+          ],
+          "target": "principal:alice@acme.example"
+        },
+        {
+          "confidence": "high",
+          "edge_type": "produced_effect_on",
+          "integrity_status": "verified",
+          "note": "observed downstream effect linked by dcfp.effect.observed",
+          "observation": "observed",
+          "source": "tool:email.send",
+          "source_artefact": [
+            "span-tool-emailsend",
+            "span-egress-http"
+          ],
+          "target": "target:external-archive@mailbox-backup.example"
+        }
+      ],
+      "nodes": [
+        {
+          "label": "alice@acme.example",
+          "node_id": "principal:alice@acme.example",
+          "node_type": "principal"
+        },
+        {
+          "label": "agent-mailbox-triage",
+          "node_id": "agent:agent-mailbox-triage",
+          "node_type": "agent"
+        },
+        {
+          "label": "email.read",
+          "node_id": "tool:email.read",
+          "node_type": "tool"
+        },
+        {
+          "label": "mailbox://alice@acme.example/inbox",
+          "node_id": "target:mailbox://alice@acme.example/inbox",
+          "node_type": "target"
+        },
+        {
+          "label": "drive://acme/legal/contracts",
+          "node_id": "retrieval_source:drive://acme/legal/contracts",
+          "node_type": "retrieval_source"
+        },
+        {
+          "label": "examplelm-2-medium",
+          "node_id": "model:examplelm-2-medium",
+          "node_type": "model"
+        },
+        {
+          "label": "email.send",
+          "node_id": "tool:email.send",
+          "node_type": "tool"
+        },
+        {
+          "label": "external-archive@mailbox-backup.example",
+          "node_id": "target:external-archive@mailbox-backup.example",
+          "node_type": "target"
+        }
+      ]
+    },
+    "partial_order": {
+      "span-create-agent": [],
+      "span-egress-http": [
+        "span-tool-emailsend"
+      ],
+      "span-inference-1": [
+        "span-invoke-agent"
+      ],
+      "span-invoke-agent": [],
+      "span-retrieval-contract": [
+        "span-invoke-agent"
+      ],
+      "span-tool-emailread": [
+        "span-invoke-agent"
+      ],
+      "span-tool-emailsend": [
+        "span-inference-1"
+      ]
+    },
+    "planes": {
+      "actions_and_effects": [
+        "span-tool-emailread",
+        "span-tool-emailsend",
+        "span-egress-http"
+      ],
+      "identity_and_configuration": [
+        "span-create-agent",
+        "span-tool-emailread",
+        "span-tool-emailsend"
+      ],
+      "inputs_and_outputs": [
+        "span-invoke-agent",
+        "span-inference-1"
+      ],
+      "knowledge_and_memory": [
+        "span-retrieval-contract"
+      ],
+      "reasoning_and_decisions": [
+        "span-invoke-agent",
+        "span-inference-1"
+      ]
+    }
+  },
   "selftrace_actions": 9,
   "trace_id": "trace-7f3a91",
+  "transformation_ledger": [
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "3fc053290f58af4d4f6f66508cc20c034d55390cb00daa1f32e442813e83858b",
+      "output_id": "partial-order",
+      "promoted": false,
+      "rule": "ingest: parentage and effect links, never a global clock"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "5b1e011031082ee33738117e31a646e297c8e77348acfde56d55b0b6533ff684",
+      "output_id": "plane-projection",
+      "promoted": false,
+      "rule": "planes: pi projection (companion A.4)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "b03c4b1776c4a5eebf6aec6fb571cc4299388b848c44b870794080687909bba7",
+      "output_id": "node-principal:alice@acme.example",
+      "promoted": false,
+      "rule": "build_graph: actor or resource (companion A.2)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "bea56363c2b84c03744766e4d031b3e2d8a0c5acd40cf03ee497e2dc022c4f41",
+      "output_id": "node-agent:agent-mailbox-triage",
+      "promoted": false,
+      "rule": "build_graph: actor or resource (companion A.2)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "55f692e05bfdfcdfb0bff83edad4aa908481a207284d87643b09d08d354c504f",
+      "output_id": "node-tool:email.read",
+      "promoted": false,
+      "rule": "build_graph: actor or resource (companion A.2)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "8f3f3f962697d811f56d32b33cc370e7d6c868c1fed8205e2a65c21673a3c1b6",
+      "output_id": "node-target:mailbox://alice@acme.example/inbox",
+      "promoted": false,
+      "rule": "build_graph: actor or resource (companion A.2)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "a465606244ae471753b75ebc454e6ae1fa8462d3b8c43e827105180e2b1c26e1",
+      "output_id": "node-retrieval_source:drive://acme/legal/contracts",
+      "promoted": false,
+      "rule": "build_graph: actor or resource (companion A.2)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "b4d4ee5400ec4e79c0a43801fb7edd3bf94eb3511ff24726f9cfe2ca0156beb9",
+      "output_id": "node-model:examplelm-2-medium",
+      "promoted": false,
+      "rule": "build_graph: actor or resource (companion A.2)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "748544efdf495557bdd31d45bb9c4e69208b743cab1abb82ad2c675cef8f35b6",
+      "output_id": "node-tool:email.send",
+      "promoted": false,
+      "rule": "build_graph: actor or resource (companion A.2)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "7df29e405519f92efd7f4637e87a8e32c512089a6c4b57ed0aa9d146803b7939"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "316f4f5b881066f56d567a6f3209a88a8413b28f45a04e596c024322eebb1738",
+      "output_id": "node-target:external-archive@mailbox-backup.example",
+      "promoted": false,
+      "rule": "build_graph: actor or resource (companion A.2)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "2cbf057d24e5b078d2804028748c73fa5ee5485569eb761d6e5c752ab20ab914"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "7cbb151a609f8798e1f8143c6cdddc023eba52c24d8015dc0362d6b9d9ec1b03",
+      "output_id": "edge-0",
+      "promoted": false,
+      "rule": "build_graph: instructed"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "f7c96e3197405736621c8c893481f51a4358b6f465b4fa0ec58a247fe24575d0"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "0283b1b200547068c29b07f0a78c73b8e8516a0e16fdb9c075b5e09f9b36d7fb",
+      "output_id": "edge-1",
+      "promoted": false,
+      "rule": "build_graph: invoked"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "f7c96e3197405736621c8c893481f51a4358b6f465b4fa0ec58a247fe24575d0"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "29fbda7118032ded1b148789cb543f9b06afaf4a960bd8d6642b02d46a3621fc",
+      "output_id": "edge-2",
+      "promoted": false,
+      "rule": "build_graph: authenticated_as"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "275b20599135f58be682b15ac31cc92d60e8460ae85d53016593f3341d12ae24"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "66c8ac6d2b1f50f50b0c69f2dc11c72f5bc6e1b6af434260c260e6abb4062f26",
+      "output_id": "edge-3",
+      "promoted": false,
+      "rule": "build_graph: retrieved_from"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "275b20599135f58be682b15ac31cc92d60e8460ae85d53016593f3341d12ae24"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "3cfe4a97664666b4c936d32f43a36af25f3ddc1d2a82e3da4d353192c1bd3969",
+      "output_id": "edge-4",
+      "promoted": false,
+      "rule": "build_graph: supplied_context_to"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "852cbee90688569402f4b740da27f9793335741e48360fb8945036d347249916"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "5f1cc42d52e9eb789ae982758e361a264d647a0f11644ced8fa6a2872a370d50",
+      "output_id": "edge-5",
+      "promoted": false,
+      "rule": "build_graph: invoked"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "553295c3fbdc39488f1018caf729935aa782b3d5ecdbf2d146778c3bb737a610"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "e2a7af3579cea34ecca5662434b08080c44eb8c5f99b14d02bb68c576ce5f21c",
+      "output_id": "edge-6",
+      "promoted": false,
+      "rule": "build_graph: invoked"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "553295c3fbdc39488f1018caf729935aa782b3d5ecdbf2d146778c3bb737a610"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "0623b0a05fdd039a837948d972c52a3d407ac53ab16af07a790fac544efd8d2f",
+      "output_id": "edge-7",
+      "promoted": false,
+      "rule": "build_graph: authenticated_as"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "553295c3fbdc39488f1018caf729935aa782b3d5ecdbf2d146778c3bb737a610",
+        "05f50b2a1b214ddce1af357335d869b222f327458877bc8ccf001c29e14d5b4c"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "26983d56f55a2db2e803c62d9e788322fe0583eba8f979d71ccc1a540a7f677b",
+      "output_id": "edge-8",
+      "promoted": false,
+      "rule": "build_graph: produced_effect_on"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "ffbcf471c7e8491e4705748b33d0eacad8a3d199cabd0558beeb81f58c11b585"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "80f9af51098da8b390f4a2ad49bb799b79a5f7e8a63e713441296a7bc3de3ff9",
+      "output_id": "answer-Q1",
+      "promoted": false,
+      "rule": "resolve Q1"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "ffbcf471c7e8491e4705748b33d0eacad8a3d199cabd0558beeb81f58c11b585"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "d57929dabfa9c2987f33ebf57d9f7701b242c6cb76551c931d2bd2b1489b457a",
+      "output_id": "answer-Q2",
+      "promoted": false,
+      "rule": "resolve Q2"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "ffbcf471c7e8491e4705748b33d0eacad8a3d199cabd0558beeb81f58c11b585"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "0a6b4a15ab209ff821bd242e2cb56a57d53b1b49ae39eed1919af16bf9d1e038",
+      "output_id": "answer-Q3",
+      "promoted": false,
+      "rule": "resolve Q3"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "ffbcf471c7e8491e4705748b33d0eacad8a3d199cabd0558beeb81f58c11b585"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "7e523642d953f032b0c530947ca063a20eea48bcaef9512d19fe47923dbf3a1c",
+      "output_id": "answer-Q4",
+      "promoted": false,
+      "rule": "resolve Q4"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "ffbcf471c7e8491e4705748b33d0eacad8a3d199cabd0558beeb81f58c11b585"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "2a955448d0560e6d6fc4d84bb215142e0fdd071fe246fa24dd93bb89ce32c25a",
+      "output_id": "answer-Q5",
+      "promoted": false,
+      "rule": "resolve Q5"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "ffbcf471c7e8491e4705748b33d0eacad8a3d199cabd0558beeb81f58c11b585"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "8915c6eeb0a37fea65c4232072ebb3bc4a0656c8fa23a0d2c42343b794f687fb",
+      "output_id": "answer-Q6",
+      "promoted": false,
+      "rule": "resolve Q6"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "ffbcf471c7e8491e4705748b33d0eacad8a3d199cabd0558beeb81f58c11b585"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "73ca1a14c2156d01874f34d5f0abd590b981adcd7a2c04b71c491f9b9ee17900",
+      "output_id": "answer-Q7",
+      "promoted": false,
+      "rule": "resolve Q7"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "f7c96e3197405736621c8c893481f51a4358b6f465b4fa0ec58a247fe24575d0",
+        "a55413de63d7ba8928b70704d746801f8b810968374a60cca0e9af7b8eb3998f"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "8f25218601bf57cbfd49e3670304414b5facd95d4e1656a71360aefd966a8dc2",
+      "output_id": "capability-span-tool-emailread",
+      "promoted": false,
+      "rule": "capability: call-granularity scope check"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "553295c3fbdc39488f1018caf729935aa782b3d5ecdbf2d146778c3bb737a610",
+        "a55413de63d7ba8928b70704d746801f8b810968374a60cca0e9af7b8eb3998f"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "ecf0a8eeae8025f6adc1339052cfa7320b34509014d6e8577f038f78ab37fcd1",
+      "output_id": "capability-span-tool-emailsend",
+      "promoted": false,
+      "rule": "capability: call-granularity scope check"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "4e2dcd9da10af715b8ad872d03f3b2d0bc21fcc2f5b9d85a7a9b245d8fe41373",
+        "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+      ],
+      "is_lead": false,
+      "model_invocation": null,
+      "note": "",
+      "output_hash": "ce50dda808b21a119969c4c9ba9c8cf26f21e05689865e6787b2c7eed4d45f2f",
+      "output_id": "completeness",
+      "promoted": false,
+      "rule": "completeness: three senses (companion A.2)"
+    },
+    {
+      "code_version": "0.1.0",
+      "human_modification": null,
+      "input_hashes": [
+        "5251d33f065a6adf1ee9634e152753260808b0d1190eb3948dcf3bae4556da31"
+      ],
+      "is_lead": true,
+      "model_invocation": "SIMULATED fixture suggestion; no model was invoked",
+      "note": "Synthetic lead only; no model was invoked and this is not evidence.",
+      "output_hash": "62df41c3f00513413d30b433171a71bd3d9eb84552789f542c0297f6e01bad21",
+      "output_id": "lead-external-recipient-alias",
+      "promoted": false,
+      "rule": "synthetic illustration of an unverified association"
+    }
+  ],
   "unverified_leads": [
     "lead-external-recipient-alias"
   ]

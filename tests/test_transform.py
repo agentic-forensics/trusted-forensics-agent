@@ -46,15 +46,36 @@ class TestLedger(unittest.TestCase):
             self.ledger.promote_lead("lead-1", verifying_evidence=[])
 
     def test_lead_promoted_with_independent_evidence(self):
+        original = self.ledger.record_lead(
+            output_id="lead-1", rule="r", inputs=[{}], suggestion={},
+            model_invocation="m", note="Original uncertainty must survive.",
+        )
+        before = self.ledger.records()
+        evidence = {"span": "span-corroborating"}
+        promoted = self.ledger.promote_lead(
+            "lead-1", verifying_evidence=[evidence]
+        )
+        self.assertTrue(promoted.promoted)
+        self.assertEqual(len(self.ledger.unverified_leads()), 0)
+        self.assertEqual(len(self.ledger), 2)
+        self.assertEqual(self.ledger.records()[:1], before)
+        self.assertFalse(original.promoted)
+        self.assertEqual(self.ledger.leads(), [promoted])
+        self.assertEqual(
+            promoted.input_hashes,
+            (hash_input(original.as_record()), hash_input(evidence)),
+        )
+
+    def test_repeated_promotion_rejected_without_changing_history(self):
         self.ledger.record_lead(
             output_id="lead-1", rule="r", inputs=[{}], suggestion={},
             model_invocation="m",
         )
-        promoted = self.ledger.promote_lead(
-            "lead-1", verifying_evidence=[{"span": "span-corroborating"}]
-        )
-        self.assertTrue(promoted.promoted)
-        self.assertEqual(len(self.ledger.unverified_leads()), 0)
+        self.ledger.promote_lead("lead-1", verifying_evidence=[{"proof": 1}])
+        before = self.ledger.records()
+        with self.assertRaisesRegex(ValueError, "already been promoted"):
+            self.ledger.promote_lead("lead-1", verifying_evidence=[{"proof": 2}])
+        self.assertEqual(self.ledger.records(), before)
 
     def test_promote_unknown_lead_raises(self):
         with self.assertRaises(KeyError):

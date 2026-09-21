@@ -83,6 +83,21 @@ class TestWitness(unittest.TestCase):
         with self.assertRaises(ValueError):
             LocalWitness(b"")
 
+    def test_local_witness_rejects_false_independence_or_changed_label(self):
+        witness = LocalWitness(b"k")
+        anchor = witness.attest(0, b"head")
+        for changes in ({"independent": True}, {"note": "independently attested"}):
+            with self.subTest(changes=changes):
+                self.assertFalse(witness.verify(dataclasses.replace(anchor, **changes)))
+
+    def test_local_witness_rejects_malformed_anchor_without_crashing(self):
+        witness = LocalWitness(b"k")
+        anchor = witness.attest(0, b"head")
+        for changes in ({"index": -1}, {"index": 2 ** 64}, {"index": True},
+                        {"head": "not-bytes"}, {"signature": "not-bytes"}):
+            with self.subTest(changes=changes):
+                self.assertFalse(witness.verify(dataclasses.replace(anchor, **changes)))
+
 
 class TestVerifyChain(unittest.TestCase):
     def _witnessed(self):
@@ -134,6 +149,50 @@ class TestVerifyChain(unittest.TestCase):
         spans, seed, receipts, _anchors, w = self._witnessed()
         result = verify_chain(spans, receipts, [], w, seed)
         self.assertFalse(result.ok)
+
+    def test_prefix_anchor_does_not_verify_unwitnessed_suffix(self):
+        spans, seed, receipts, _anchors, w = self._witnessed()
+        anchors = [w.attest(1, receipts[1].head)]
+        result = verify_chain(spans, receipts, anchors, w, seed)
+        self.assertFalse(result.ok)
+        self.assertFalse(result.anchors_ok)
+        self.assertIsNone(result.broken_at_index)
+        self.assertIn("final span index 4", " ".join(result.messages))
+
+    def test_rehashed_suffix_cannot_hide_behind_original_prefix_anchor(self):
+        spans, seed, receipts, _anchors, w = self._witnessed()
+        anchors = [w.attest(1, receipts[1].head)]
+        mutated = list(spans)
+        mutated[3] = dataclasses.replace(spans[3], attributes={"i": "rewritten"})
+        replacement = HashChain(seed)
+        replacement.extend(mutated)
+        result = verify_chain(mutated, list(replacement.store), anchors, w, seed)
+        self.assertFalse(result.ok)
+        self.assertFalse(result.anchors_ok)
+
+    def test_prefix_and_final_anchors_cover_entire_record(self):
+        spans, seed, receipts, anchors, w = self._witnessed()
+        anchors.insert(0, w.attest(1, receipts[1].head))
+        self.assertTrue(verify_chain(spans, receipts, anchors, w, seed).ok)
+
+    def test_receipt_identity_is_checked_even_when_hashes_match(self):
+        spans, seed, receipts, anchors, w = self._witnessed()
+        for changes in ({"index": 99}, {"span_id": "different-span"}):
+            with self.subTest(changes=changes):
+                altered = list(receipts)
+                altered[2] = dataclasses.replace(receipts[2], **changes)
+                result = verify_chain(spans, altered, anchors, w, seed)
+                self.assertFalse(result.ok)
+                self.assertEqual(result.broken_at_index, 2)
+
+    def test_invalid_anchor_indices_fail_closed_without_crashing(self):
+        spans, seed, receipts, anchors, w = self._witnessed()
+        for index in (-1, 2 ** 100, True):
+            with self.subTest(index=index):
+                malformed = dataclasses.replace(anchors[0], index=index)
+                result = verify_chain(spans, receipts, [malformed], w, seed)
+                self.assertFalse(result.ok)
+                self.assertFalse(result.anchors_ok)
 
     def test_count_mismatch_fails(self):
         spans, seed, receipts, anchors, w = self._witnessed()
