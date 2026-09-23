@@ -53,10 +53,15 @@ The generated report, a JSON summary and the synthetic trace itself are also com
 
 ## Four-step presentation demo
 
-The demo follows slide 16: verify a preserved record, reconstruct its graph,
-answer the seven questions and produce a sealed readiness package. It runs offline
-and uses the development witness. Watch the [four-minute silent demo](demos/trusted_forensic_agent_4min.mp4),
-or use the [walkthrough](DEMO.md) to run it live.
+The [four-minute CLI recording](demos/trusted_forensics_agent_cli.mp4) follows
+slide 16 using the synthetic **Confidential Contract Disclosure** case. It shows
+an AI investigation through local MCP tools, followed by deterministic record
+verification, chain reconstruction, answers, packaging and an altered-copy check.
+The video has no audio and plays offline; its timing is edited for presentation.
+It uses a public development witness without independent attestation.
+
+The [walkthrough](DEMO.md) below describes the offline forensic core. The AI
+investigation shown in the recording requires an API connection when rerun.
 
 ```sh
 # Run all four stages, verify reproduction, then detect a changed COPY of the report.

@@ -1,12 +1,15 @@
 # Presentation demo
 
-This four-minute terminal walkthrough follows the four steps on slide 16 of
-`docs/deck/AMLUCS-2026-Agentic-Forensics.pdf`: verify the preserved record,
-reconstruct the delegation chain, answer the seven questions, and produce a
-sealed admissibility-readiness package. The [four-minute video](demos/trusted_forensic_agent_4min.mp4)
-shows the complete demonstration without a voiceover.
+The [four-minute CLI recording](demos/trusted_forensics_agent_cli.mp4) follows
+the four stages on slide 16 of `docs/deck/AMLUCS-2026-Agentic-Forensics.pdf`:
+ingest the record, reconstruct the chain, answer questions and produce the package.
+The **Confidential Contract Disclosure** case uses real AI tool selection over
+synthetic evidence, then deterministic verification and an altered-copy check.
 
-Everything runs offline using Python 3.9 or later and the standard library.
+The video has no voiceover, uses edited presentation timing, and plays offline.
+Rerunning its AI investigation requires an API connection. The manual core
+walkthrough below runs offline using Python 3.9 or later and the standard library.
+
 The scenarios are synthetic illustrations. The cross-provider scenario is not
 evidence from the Mexico investigation or another real incident. The witness
 uses a publicly known demonstration key and provides no independent attestation:

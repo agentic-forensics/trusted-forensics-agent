@@ -5,6 +5,10 @@ __pycache__/
 .venv/
 results/
 screencasts/
+
+# Keep only the selected CLI recording under version control.
+/demos/*.mp4
+!/demos/trusted_forensics_agent_cli.mp4
 .claude/settings.local.json
 
 # Source papers and internal build/spec docs are local-only, never committed
